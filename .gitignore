@@ -32,3 +32,5 @@ test-results
 result
 result-*
 .direnv/
+
+.reference
