@@ -1,0 +1,8 @@
+{
+  "name": "edu_effect-okf",
+  "runtime": { "_tag": "bun" },
+  "lint": "biome",
+  "format": "biome",
+  "test": "vitest",
+  "monorepo": "turbo"
+}
