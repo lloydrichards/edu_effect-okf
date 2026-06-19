@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "bun@1.2.21",
   "scripts": {
+    "prepare": "effect-language-service patch",
     "lint": "biome lint .",
     "format": "biome check --write .",
     "format:check": "biome check .",
@@ -13,9 +14,9 @@
     "test": "turbo run test"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.85.1",
-    "typescript": "6.0.2",
-    "@biomejs/biome": "2.4.11",
+    "@effect/language-service": "^0.86.2",
+    "typescript": "6.0.3",
+    "@biomejs/biome": "2.5.0",
     "turbo": "^2.9.6",
     "vitest": "^4.1.4"
   },

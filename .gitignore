@@ -15,7 +15,9 @@ tsconfig.tsbuildinfo
 
 # ide
 .idea
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 *.swp
 *.swo
 
