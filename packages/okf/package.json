@@ -1,0 +1,33 @@
+{
+  "name": "@repo/okf",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "scratch": "bun run scratchpad.ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "git clean -xdf .cache .turbo dist node_modules tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@repo/domain": "workspace:*",
+    "effect": "4.0.0-beta.84",
+    "remark-frontmatter": "^5.0.0",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@effect/platform-bun": "4.0.0-beta.84",
+    "@effect/vitest": "4.0.0-beta.84",
+    "@repo/config-typescript": "workspace:*",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^26.0.0"
+  }
+}

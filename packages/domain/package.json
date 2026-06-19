@@ -20,6 +20,7 @@
     "./Api": "./src/Api.ts",
     "./Chat": "./src/Chat.ts",
     "./ChatRpc": "./src/ChatRpc.ts",
-    "./Chunk": "./src/Chunk.ts"
+    "./Chunk": "./src/Chunk.ts",
+    "./Okf": "./src/Okf.ts"
   }
 }
