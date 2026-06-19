@@ -8,9 +8,10 @@
     "clean": "git clean -xdf .cache .turbo dist node_modules tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.80",
-    "@effect/ai-anthropic": "4.0.0-beta.80",
-    "@repo/domain": "workspace:*"
+    "effect": "4.0.0-beta.84",
+    "@effect/ai-anthropic": "4.0.0-beta.84",
+    "@repo/domain": "workspace:*",
+    "@repo/rag": "workspace:*"
   },
   "devDependencies": {
     "@effect/language-service": "^0.85.1",

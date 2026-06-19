@@ -1,0 +1,16 @@
+name: edu_effect-rag-builder
+services:
+
+  chroma:
+    image: chromadb/chroma
+    volumes:
+      - data:/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  data:

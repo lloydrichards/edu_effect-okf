@@ -1,0 +1,31 @@
+{
+  "name": "@repo/rag",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "scratch": "bun run scratchpad.ts",
+    "explore:pdf": "bun run src/pdf/explorePdfFeatures.ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "git clean -xdf .cache .turbo dist node_modules tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@effect/ai-anthropic": "4.0.0-beta.84",
+    "@chroma-core/default-embed": "^0.1.9",
+    "@repo/domain": "workspace:*",
+    "chromadb": "^3.4.0",
+    "effect": "4.0.0-beta.84",
+    "unpdf": "^1.6.2"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-beta.84",
+    "@repo/config-typescript": "workspace:*",
+    "@types/node": "^26.0.0"
+  }
+}

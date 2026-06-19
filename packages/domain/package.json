@@ -8,7 +8,7 @@
     "clean": "git clean -xdf .cache .turbo dist node_modules tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.80"
+    "effect": "4.0.0-beta.84"
   },
   "devDependencies": {
     "@effect/language-service": "^0.85.1",
@@ -20,6 +20,7 @@
   "exports": {
     "./Api": "./src/Api.ts",
     "./Chat": "./src/Chat.ts",
-    "./ChatRpc": "./src/ChatRpc.ts"
+    "./ChatRpc": "./src/ChatRpc.ts",
+    "./Chunk": "./src/Chunk.ts"
   }
 }
