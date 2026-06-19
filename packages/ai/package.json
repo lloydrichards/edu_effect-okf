@@ -14,10 +14,9 @@
     "@repo/rag": "workspace:*"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.85.1",
     "@repo/config-typescript": "workspace:*",
     "@types/bun": "^1.2.17",
-    "typescript": "6.0.2",
+    "typescript": "6.0.3",
     "vitest": "^4.1.4"
   },
   "exports": {
