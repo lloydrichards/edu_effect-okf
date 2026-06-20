@@ -1,18 +1,19 @@
 import {
   type Bundle,
   type Concept,
-  type ConceptEdge,
-  ConceptEdge as ConceptEdgeSchema,
-  ConceptFrontmatter as ConceptFrontmatterSchema,
+  ConceptEdge,
+  ConceptFrontmatter,
   ConceptLink,
   type ConceptNode,
   ConceptNode as ConceptNodeSchema,
   type IndexFile,
+  IndexFrontmatter,
   type LogFile,
 } from "@repo/domain/Okf";
 import {
   Array as Arr,
   Context,
+  Data,
   Effect,
   FileSystem,
   Graph,
@@ -25,8 +26,23 @@ import {
   Schema,
   String as Str,
 } from "effect";
-import { BundleInvalid, BundleNotFound, MarkdownParseError } from "../errors";
-import { MarkdownService, type RawLink } from "./MarkdownService";
+import {
+  MarkdownParseError,
+  MarkdownService,
+  type RawLink,
+} from "./MarkdownService";
+
+export class BundleNotFound extends Data.TaggedError("BundleNotFound")<{
+  path: string;
+}> {}
+
+export class BundleInvalid extends Data.TaggedError("BundleInvalid")<{
+  path: string;
+  issues: ReadonlyArray<{
+    file: string;
+    reason: string;
+  }>;
+}> {}
 
 const RESERVED_NAMES = new Set(["index.md", "log.md"]);
 
@@ -116,10 +132,6 @@ export class OkfService extends Context.Service<OkfService>()(
               : Result.fail(entry),
         );
 
-        const IndexFrontmatter = Schema.Struct({
-          version: Schema.optional(Schema.String),
-        });
-
         const indexFiles: ReadonlyArray<IndexFile> = yield* Effect.forEach(
           indexEntries,
           ({ rel, content }) =>
@@ -163,7 +175,7 @@ export class OkfService extends Context.Service<OkfService>()(
                 });
               }
               const frontmatter = yield* Schema.decodeUnknownEffect(
-                ConceptFrontmatterSchema,
+                ConceptFrontmatter,
               )(parsed.frontmatter.value).pipe(
                 Effect.mapError(
                   (e) => new MarkdownParseError({ reason: String(e) }),
@@ -289,7 +301,7 @@ export class OkfService extends Context.Service<OkfService>()(
               mutable,
               sourceIdx,
               targetIdx,
-              Schema.decodeUnknownSync(ConceptEdgeSchema)({
+              Schema.decodeUnknownSync(ConceptEdge)({
                 kind: "concept-link",
                 ...intent,
               }),

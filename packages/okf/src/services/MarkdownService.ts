@@ -1,10 +1,13 @@
-import { Context, Effect, Layer, Option } from "effect";
+import { Context, Data, Effect, Layer, Option } from "effect";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
 import YAML from "yaml";
-import { MarkdownParseError } from "../errors";
+
+export class MarkdownParseError extends Data.TaggedError("MarkdownParseError")<{
+  reason: string;
+}> {}
 
 export interface RawLink {
   readonly label: string;
