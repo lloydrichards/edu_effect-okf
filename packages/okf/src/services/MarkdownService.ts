@@ -15,7 +15,6 @@ import type {
   RootContent,
   Strong,
   Text,
-  ThematicBreak,
   Yaml,
 } from "mdast";
 import remarkFrontmatter from "remark-frontmatter";
@@ -125,9 +124,7 @@ const extractText = (node: unknown): string => {
   return "";
 };
 
-const mapInline = (
-  node: PhrasingContent,
-): ReadonlyArray<MarkdownInline> => {
+const mapInline = (node: PhrasingContent): ReadonlyArray<MarkdownInline> => {
   switch (node.type) {
     case "text":
       return [{ _tag: "Text", value: (node as Text).value }];
@@ -310,11 +307,14 @@ export class MarkdownService extends Context.Service<MarkdownService>()(
 
       const parse = (raw: string) =>
         parseDocument(raw).pipe(
-          Effect.map(({ frontmatter, body, links }) => ({
-            frontmatter,
-            body,
-            links,
-          } satisfies ParsedMarkdown)),
+          Effect.map(
+            ({ frontmatter, body, links }) =>
+              ({
+                frontmatter,
+                body,
+                links,
+              }) satisfies ParsedMarkdown,
+          ),
         );
 
       return { parse, parseDocument } as const;
