@@ -1,51 +1,29 @@
-import { MarkdownService, OkfService } from "@repo/okf";
+import { OkfService } from "@repo/okf";
 import { Console, Effect, Terminal } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
-import { MarkdownBox } from "../ui/Markdown";
+import { ConceptCard } from "../ui/ConceptCard";
 
 export const concept = Command.make(
   "concept",
   { bundlePath, conceptId },
   ({ bundlePath, conceptId }) =>
     Effect.gen(function* () {
-      const markdown = yield* MarkdownService;
       const okf = yield* OkfService;
       const terminal = yield* Terminal.Terminal;
-      const width = yield* terminal.columns;
+      const terminalWidth = yield* terminal.columns;
+      const width = terminalWidth > 20 ? terminalWidth : 120;
 
-      const { bundle } = yield* okf.make(bundlePath);
+      const { bundle, graph } = yield* okf.make(bundlePath);
 
       const concept = bundle.concepts.find((c) => c.id === conceptId);
       if (!concept) {
         yield* Console.log(`Concept not found: ${conceptId}`);
         return;
       }
+      const card = yield* ConceptCard(concept, graph, width);
 
-      const { document } = yield* markdown.parseDocument(concept.body);
-
-      const content = yield* Box.renderPretty(
-        Box.vcat(
-          [
-            Box.hsep(
-              [Box.text("Concept ID:"), Box.text(concept.id)],
-              1,
-              Box.left,
-            ),
-            MarkdownBox(document, width - 4).pipe(
-              Box.pad(1),
-              Box.border("rounded"),
-            ),
-            Box.hsep(
-              [Box.text("Links:"), Box.text(concept.links.length.toString())],
-              1,
-              Box.left,
-            ),
-          ],
-          Box.left,
-        ),
-      );
-      yield* Console.log(content);
+      yield* Console.log(yield* Box.renderPretty(card));
     }),
 ).pipe(Command.withDescription("Print a concept from a bundle"));
