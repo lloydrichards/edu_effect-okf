@@ -20,7 +20,9 @@
       },
       "dependencies": {
         "@effect/platform-bun": "4.0.0-beta.84",
+        "@repo/okf": "workspace:*",
         "effect": "4.0.0-beta.84",
+        "effect-boxes": "^0.16.1",
       },
       "devDependencies": {
         "@repo/config-typescript": "workspace:*",
@@ -388,6 +390,8 @@
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
 
     "effect": ["effect@4.0.0-beta.84", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-zWwFI9WZ4TsddBmtcuuAO2IXGR0Dp56xIUt8cX29ZeyOEtErXqP6muDaVpro08lGiMSOGMqSpuH/C1TUxHsRAA=="],
+
+    "effect-boxes": ["effect-boxes@0.16.1", "", { "peerDependencies": { "effect": ">=4.0.0-beta.59" } }, "sha512-jEBeNUC8zY9/i53nHQXnWcJ6TqRbH08x78ruDcfkdl7Y5X6+/Fs9vWUhMrdusaYVkwJ5ma1p0tLPFgwKmc4sIw=="],
 
     "es-define-property": ["es-define-property@1.0.1", "", {}, "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g=="],
 

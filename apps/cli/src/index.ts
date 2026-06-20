@@ -1,24 +1,32 @@
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Effect } from "effect";
+import { OkfService } from "@repo/okf";
+import { Effect, Layer } from "effect";
 import { Command } from "effect/unstable/cli";
-import { hello } from "./commands/hello";
+import { bundle } from "./commands/bundle";
+import { concept } from "./commands/concept";
+import { graph } from "./commands/graph";
+import { validate } from "./commands/validate";
 
 // ============================================================================
 // Root Command
 // ============================================================================
 
-const root = Command.make("cli");
+const root = Command.make("okf");
 
 // ============================================================================
 // Program
 // ============================================================================
 
 // Subcommands - modules inject additional subcommands via Command.withSubcommands
-const AllCommands = Command.withSubcommands([hello]);
+const AllCommands = Command.withSubcommands([concept, bundle, graph, validate]);
+
+const MainLayer = Layer.mergeAll(OkfService.layer).pipe(
+  Layer.provideMerge(BunServices.layer),
+);
 
 root.pipe(
   AllCommands,
   Command.run({ version: "0.0.0" }),
-  Effect.provide(BunServices.layer),
+  Effect.provide(MainLayer),
   BunRuntime.runMain,
 );
