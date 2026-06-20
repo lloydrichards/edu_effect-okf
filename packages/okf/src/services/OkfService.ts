@@ -32,6 +32,21 @@ import {
   type RawLink,
 } from "./MarkdownService";
 
+/** ISO 8601 datetime pattern for SHOULD-level validation (§4.1) */
+const TimestampFormat = Schema.String.check(
+  Schema.isPattern(
+    /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/,
+    { description: "ISO 8601 datetime (OKF §4.1)" },
+  ),
+);
+
+/** URI pattern for SHOULD-level resource validation (§4.1) */
+const ResourceUri = Schema.String.check(
+  Schema.isPattern(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S+$/, {
+    description: "A valid URI (OKF §4.1)",
+  }),
+);
+
 export class BundleNotFound extends Data.TaggedError("BundleNotFound")<{
   path: string;
 }> {}
@@ -260,9 +275,13 @@ export class OkfService extends Context.Service<OkfService>()(
                   reason: "No frontmatter found",
                 });
               }
+              // Preserve unknown frontmatter keys per OKF §4.1:
+              // "Consumers SHOULD preserve unknown keys when round-tripping"
               const frontmatter = yield* Schema.decodeUnknownEffect(
                 ConceptFrontmatter,
-              )(parsed.frontmatter.value).pipe(
+              )(parsed.frontmatter.value, {
+                onExcessProperty: "preserve",
+              }).pipe(
                 Effect.mapError(
                   (e) => new MarkdownParseError({ reason: String(e) }),
                 ),
@@ -426,15 +445,52 @@ export class OkfService extends Context.Service<OkfService>()(
           );
           const graph = yield* buildGraph(bundle);
 
-          const issues = Arr.map(graph.unresolvedLinks, (link) => ({
+          // Broken links are warnings per OKF spec §5.3:
+          // "Consumers MUST tolerate broken links"
+          const linkIssues = Arr.map(graph.unresolvedLinks, (link) => ({
             id: `${link.sourceId}->${link.targetId}`,
             source: "graph" as const,
             reason: `Broken internal link from ${link.sourceId} to ${link.targetId}`,
-            severity: "error" as const,
+            severity: "warning" as const,
           }));
 
+          // Quality warnings: validate SHOULD-level constraints via Schema
+          const qualityIssues = pipe(
+            bundle.concepts,
+            Arr.flatMap((c) =>
+              Arr.getSomes([
+                pipe(
+                  Option.fromNullishOr(c.frontmatter.timestamp),
+                  Option.filter((ts) => !Schema.is(TimestampFormat)(ts)),
+                  Option.map((ts) => ({
+                    id: c.id,
+                    source: "concept" as const,
+                    reason: `Invalid timestamp format "${ts}" — expected ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)`,
+                    severity: "warning" as const,
+                  })),
+                ),
+                pipe(
+                  Option.fromNullishOr(c.frontmatter.resource),
+                  Option.filter((uri) => !Schema.is(ResourceUri)(uri)),
+                  Option.map((uri) => ({
+                    id: c.id,
+                    source: "concept" as const,
+                    reason: `Invalid resource URI "${uri}" — expected a valid URL`,
+                    severity: "warning" as const,
+                  })),
+                ),
+              ]),
+            ),
+          );
+
+          const issues: ValidationResult["issues"] = [
+            ...linkIssues,
+            ...qualityIssues,
+          ];
+
           return {
-            valid: issues.length === 0,
+            // Only conformance errors affect validity
+            valid: !Arr.some(issues, (i) => i.severity === "error"),
             issues,
           } satisfies ValidationResult;
         }),

@@ -38,7 +38,7 @@ describe("OkfService", () => {
     }).pipe(Effect.provide(TestLayer)),
   );
 
-  it.effect("reports broken internal links during validation", () =>
+  it.effect("reports broken internal links as warnings (OKF §5.3)", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const okf = yield* OkfService;
@@ -53,13 +53,14 @@ describe("OkfService", () => {
 
       const result = yield* okf.validate(dir);
 
-      expect(result.valid).toBe(false);
+      // Per OKF §5.3: "Consumers MUST tolerate broken links"
+      expect(result.valid).toBe(true);
       expect(result.issues).toEqual([
         {
           id: "concept->missing",
           source: "graph",
           reason: "Broken internal link from concept to missing",
-          severity: "error",
+          severity: "warning",
         },
       ]);
     }).pipe(Effect.provide(TestLayer)),
