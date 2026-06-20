@@ -1,5 +1,5 @@
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { OkfService } from "@repo/okf";
+import { MarkdownService, OkfService } from "@repo/okf";
 import { Effect, Layer } from "effect";
 import { Command } from "effect/unstable/cli";
 import { bundle } from "./commands/bundle";
@@ -20,7 +20,7 @@ const root = Command.make("okf");
 // Subcommands - modules inject additional subcommands via Command.withSubcommands
 const AllCommands = Command.withSubcommands([concept, bundle, graph, validate]);
 
-const MainLayer = Layer.mergeAll(OkfService.layer).pipe(
+const MainLayer = Layer.mergeAll(OkfService.layer, MarkdownService.layer).pipe(
   Layer.provideMerge(BunServices.layer),
 );
 

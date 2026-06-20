@@ -1,17 +1,20 @@
-import { OkfService } from "@repo/okf";
+import { MarkdownService, OkfService } from "@repo/okf";
 import { Console, Effect, Terminal } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
+import { MarkdownBox } from "../ui/Markdown";
 
 export const concept = Command.make(
   "concept",
   { bundlePath, conceptId },
   ({ bundlePath, conceptId }) =>
     Effect.gen(function* () {
+      const markdown = yield* MarkdownService;
       const okf = yield* OkfService;
       const terminal = yield* Terminal.Terminal;
       const width = yield* terminal.columns;
+
       const { bundle } = yield* okf.make(bundlePath);
 
       const concept = bundle.concepts.find((c) => c.id === conceptId);
@@ -19,6 +22,8 @@ export const concept = Command.make(
         yield* Console.log(`Concept not found: ${conceptId}`);
         return;
       }
+
+      const { document } = yield* markdown.parseDocument(concept.body);
 
       const content = yield* Box.renderPretty(
         Box.vcat(
@@ -28,8 +33,8 @@ export const concept = Command.make(
               1,
               Box.left,
             ),
-            Box.text(concept.body).pipe(
-              Box.maxWidth(width - 4),
+            MarkdownBox(document, width - 4).pipe(
+              Box.pad(1),
               Box.border("rounded"),
             ),
             Box.hsep(

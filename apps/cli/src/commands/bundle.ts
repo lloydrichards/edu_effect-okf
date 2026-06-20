@@ -1,18 +1,23 @@
-import { OkfService } from "@repo/okf";
-import { Console, Effect } from "effect";
+import { MarkdownService, OkfService } from "@repo/okf";
+import { Console, Effect, Terminal } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath } from "../args";
+import { MarkdownBox } from "../ui/Markdown";
 
 export const index = Command.make("index", { bundlePath }, ({ bundlePath }) =>
   Effect.gen(function* () {
+    const markdown = yield* MarkdownService;
     const okf = yield* OkfService;
+    const terminal = yield* Terminal.Terminal;
+    const width = yield* terminal.columns;
 
     const { bundle } = yield* okf.make(bundlePath);
 
     yield* Effect.forEach(
       bundle.indexFiles,
       Effect.fnUntraced(function* (file) {
+        const { document } = yield* markdown.parseDocument(file.content);
         const content = yield* Box.renderPretty(
           Box.vcat(
             [
@@ -21,7 +26,7 @@ export const index = Command.make("index", { bundlePath }, ({ bundlePath }) =>
                 1,
                 Box.left,
               ),
-              Box.text(file.content).pipe(Box.border("rounded")),
+              MarkdownBox(document, width),
             ],
             Box.left,
           ),
