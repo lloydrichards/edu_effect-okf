@@ -36,12 +36,28 @@ const Tags = Schema.Union([
 ]);
 
 export const ConceptFrontmatter = Schema.Struct({
-  type: Schema.String,
-  title: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
-  resource: Schema.optional(Schema.String),
+  type: Schema.NonEmptyString.annotate({
+    description: "Kind of concept — MUST be non-empty (OKF §4.1, §9)",
+  }),
+  title: Schema.optional(
+    Schema.String.annotate({ description: "Human-readable title (OKF §4.1)" }),
+  ),
+  description: Schema.optional(
+    Schema.String.annotate({
+      description: "Brief summary of the concept (OKF §4.1)",
+    }),
+  ),
+  resource: Schema.optional(
+    Schema.String.annotate({
+      description: "URI identifying the underlying asset (OKF §4.1)",
+    }),
+  ),
   tags: Schema.optional(Tags),
-  timestamp: Schema.optional(Schema.String),
+  timestamp: Schema.optional(
+    Schema.String.annotate({
+      description: "ISO 8601 datetime (OKF §4.1)",
+    }),
+  ),
 });
 
 export type ConceptFrontmatter = typeof ConceptFrontmatter.Type;

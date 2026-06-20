@@ -1,27 +1,30 @@
-import { Context, Data, Effect, Layer, Option } from "effect";
+import {
+  Array as Arr,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  Match,
+  Option,
+  pipe,
+} from "effect";
 import type {
-  Blockquote,
-  Code,
-  Delete,
-  Emphasis,
-  Heading,
-  InlineCode,
   Link,
-  List,
   ListItem,
-  Paragraph,
   PhrasingContent,
   Root,
   RootContent,
-  Strong,
-  Text,
   Yaml,
 } from "mdast";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
-import { visit } from "unist-util-visit";
 import YAML from "yaml";
+import {
+  MarkdownBlock,
+  type MarkdownDocument,
+  MarkdownInline,
+} from "../types/Markdown";
 
 export class MarkdownParseError extends Data.TaggedError("MarkdownParseError")<{
   reason: string;
@@ -30,78 +33,6 @@ export class MarkdownParseError extends Data.TaggedError("MarkdownParseError")<{
 export interface RawLink {
   readonly label: string;
   readonly target: string;
-}
-
-export type MarkdownInline =
-  | {
-      readonly _tag: "Text";
-      readonly value: string;
-    }
-  | {
-      readonly _tag: "Break";
-    }
-  | {
-      readonly _tag: "InlineCode";
-      readonly value: string;
-    }
-  | {
-      readonly _tag: "Emphasis";
-      readonly children: ReadonlyArray<MarkdownInline>;
-    }
-  | {
-      readonly _tag: "Strong";
-      readonly children: ReadonlyArray<MarkdownInline>;
-    }
-  | {
-      readonly _tag: "Delete";
-      readonly children: ReadonlyArray<MarkdownInline>;
-    }
-  | {
-      readonly _tag: "Link";
-      readonly url: string;
-      readonly title?: string | undefined;
-      readonly children: ReadonlyArray<MarkdownInline>;
-    };
-
-export type MarkdownBlock =
-  | {
-      readonly _tag: "Frontmatter";
-      readonly value: string;
-    }
-  | {
-      readonly _tag: "Heading";
-      readonly level: 1 | 2 | 3 | 4 | 5 | 6;
-      readonly children: ReadonlyArray<MarkdownInline>;
-    }
-  | {
-      readonly _tag: "Paragraph";
-      readonly children: ReadonlyArray<MarkdownInline>;
-    }
-  | {
-      readonly _tag: "List";
-      readonly ordered: boolean;
-      readonly start?: number | undefined;
-      readonly items: ReadonlyArray<ReadonlyArray<MarkdownBlock>>;
-    }
-  | {
-      readonly _tag: "Blockquote";
-      readonly children: ReadonlyArray<MarkdownBlock>;
-    }
-  | {
-      readonly _tag: "CodeBlock";
-      readonly value: string;
-      readonly language?: string | undefined;
-    }
-  | {
-      readonly _tag: "Rule";
-    }
-  | {
-      readonly _tag: "Html";
-      readonly value: string;
-    };
-
-export interface MarkdownDocument {
-  readonly blocks: ReadonlyArray<MarkdownBlock>;
 }
 
 export interface ParsedMarkdown {
@@ -124,123 +55,111 @@ const extractText = (node: unknown): string => {
   return "";
 };
 
-const mapInline = (node: PhrasingContent): ReadonlyArray<MarkdownInline> => {
-  switch (node.type) {
-    case "text":
-      return [{ _tag: "Text", value: (node as Text).value }];
-    case "break":
-      return [{ _tag: "Break" }];
-    case "inlineCode":
-      return [{ _tag: "InlineCode", value: (node as InlineCode).value }];
-    case "emphasis":
-      return [
-        {
-          _tag: "Emphasis",
-          children: mapInlines((node as Emphasis).children),
-        },
-      ];
-    case "strong":
-      return [
-        {
-          _tag: "Strong",
-          children: mapInlines((node as Strong).children),
-        },
-      ];
-    case "delete":
-      return [
-        {
-          _tag: "Delete",
-          children: mapInlines((node as Delete).children),
-        },
-      ];
-    case "link": {
-      const link = node as Link;
-      return [
-        {
-          _tag: "Link",
-          url: link.url,
-          title: link.title ?? undefined,
-          children: mapInlines(link.children),
-        },
-      ];
-    }
-    default:
-      return [{ _tag: "Text", value: extractText(node) }];
-  }
-};
+const mapInline = (node: PhrasingContent): ReadonlyArray<MarkdownInline> =>
+  Match.value(node).pipe(
+    Match.when({ type: "text" }, (n) => [
+      MarkdownInline.cases.Text.make({ value: n.value }),
+    ]),
+    Match.when({ type: "break" }, () => [MarkdownInline.cases.Break.make({})]),
+    Match.when({ type: "inlineCode" }, (n) => [
+      MarkdownInline.cases.InlineCode.make({ value: n.value }),
+    ]),
+    Match.when({ type: "emphasis" }, (n) => [
+      MarkdownInline.cases.Emphasis.make({
+        children: mapInlines(n.children),
+      }),
+    ]),
+    Match.when({ type: "strong" }, (n) => [
+      MarkdownInline.cases.Strong.make({
+        children: mapInlines(n.children),
+      }),
+    ]),
+    Match.when({ type: "delete" }, (n) => [
+      MarkdownInline.cases.Delete.make({
+        children: mapInlines(n.children),
+      }),
+    ]),
+    Match.when({ type: "link" }, (n) => [
+      MarkdownInline.cases.Link.make({
+        url: n.url,
+        title: n.title ?? undefined,
+        children: mapInlines(n.children),
+      }),
+    ]),
+    Match.orElse((n) => [
+      MarkdownInline.cases.Text.make({ value: extractText(n) }),
+    ]),
+  );
 
 const mapInlines = (
   nodes: ReadonlyArray<PhrasingContent>,
-): ReadonlyArray<MarkdownInline> => nodes.flatMap(mapInline);
+): ReadonlyArray<MarkdownInline> => Arr.flatMap(nodes, mapInline);
 
 const mapListItem = (node: ListItem): ReadonlyArray<MarkdownBlock> =>
-  node.children.flatMap(mapBlock);
+  Arr.flatMap(node.children, mapBlock);
 
-const mapBlock = (node: RootContent): ReadonlyArray<MarkdownBlock> => {
-  switch (node.type) {
-    case "yaml":
-      return [{ _tag: "Frontmatter", value: (node as Yaml).value }];
-    case "heading": {
-      const heading = node as Heading;
-      return [
-        {
-          _tag: "Heading",
-          level: heading.depth,
-          children: mapInlines(heading.children),
-        },
-      ];
-    }
-    case "paragraph": {
-      const paragraph = node as Paragraph;
-      return [
-        {
-          _tag: "Paragraph",
-          children: mapInlines(paragraph.children),
-        },
-      ];
-    }
-    case "list": {
-      const list = node as List;
-      return [
-        {
-          _tag: "List",
-          ordered: list.ordered ?? false,
-          start: list.start ?? undefined,
-          items: list.children.map(mapListItem),
-        },
-      ];
-    }
-    case "blockquote": {
-      const blockquote = node as Blockquote;
-      return [
-        {
-          _tag: "Blockquote",
-          children: blockquote.children.flatMap(mapBlock),
-        },
-      ];
-    }
-    case "code": {
-      const code = node as Code;
-      return [
-        {
-          _tag: "CodeBlock",
-          value: code.value,
-          language: code.lang ?? undefined,
-        },
-      ];
-    }
-    case "thematicBreak":
-      return [{ _tag: "Rule" }];
-    case "html":
-      return [{ _tag: "Html", value: node.value }];
-    default:
-      return [];
-  }
-};
+const mapBlock = (node: RootContent): ReadonlyArray<MarkdownBlock> =>
+  Match.value(node).pipe(
+    Match.when({ type: "yaml" }, (n) => [
+      MarkdownBlock.cases.Frontmatter.make({ value: n.value }),
+    ]),
+    Match.when({ type: "heading" }, (n) => [
+      MarkdownBlock.cases.Heading.make({
+        level: n.depth,
+        children: mapInlines(n.children),
+      }),
+    ]),
+    Match.when({ type: "paragraph" }, (n) => [
+      MarkdownBlock.cases.Paragraph.make({
+        children: mapInlines(n.children),
+      }),
+    ]),
+    Match.when({ type: "list" }, (n) => [
+      MarkdownBlock.cases.List.make({
+        ordered: n.ordered ?? false,
+        start: n.start ?? undefined,
+        items: Arr.map(n.children, mapListItem),
+      }),
+    ]),
+    Match.when({ type: "blockquote" }, (n) => [
+      MarkdownBlock.cases.Blockquote.make({
+        children: Arr.flatMap(n.children, mapBlock),
+      }),
+    ]),
+    Match.when({ type: "code" }, (n) => [
+      MarkdownBlock.cases.CodeBlock.make({
+        value: n.value,
+        language: n.lang ?? undefined,
+      }),
+    ]),
+    Match.when({ type: "thematicBreak" }, () => [
+      MarkdownBlock.cases.Rule.make({}),
+    ]),
+    Match.when({ type: "html" }, (n) => [
+      MarkdownBlock.cases.Html.make({ value: n.value }),
+    ]),
+    Match.orElse(() => []),
+  );
 
 const mapDocument = (tree: Root): MarkdownDocument => ({
-  blocks: tree.children.flatMap(mapBlock),
+  blocks: Arr.flatMap(tree.children, mapBlock),
 });
+
+/** Recursively collect all link nodes from an AST node list */
+const collectLinks = (
+  nodes: ReadonlyArray<RootContent>,
+): ReadonlyArray<RawLink> =>
+  Arr.flatMap(nodes, (node): ReadonlyArray<RawLink> => {
+    const self: ReadonlyArray<RawLink> =
+      node.type === "link"
+        ? [{ label: extractText(node), target: (node as Link).url }]
+        : [];
+    const nested: ReadonlyArray<RawLink> =
+      "children" in node
+        ? collectLinks(node.children as ReadonlyArray<RootContent>)
+        : [];
+    return Arr.appendAll(self, nested);
+  });
 
 export class MarkdownService extends Context.Service<MarkdownService>()(
   "@repo/MarkdownService",
@@ -256,7 +175,7 @@ export class MarkdownService extends Context.Service<MarkdownService>()(
        *
        * - Frontmatter is `Option.none()` when no YAML block exists.
        * - Fails with `MarkdownParseError` on malformed YAML.
-       * - Links are extracted via AST traversal (ignores code blocks).
+       * - Links are extracted via recursive AST traversal.
        */
       const parseDocument = (raw: string) =>
         Effect.gen(function* () {
@@ -268,34 +187,37 @@ export class MarkdownService extends Context.Service<MarkdownService>()(
               }),
           });
 
-          // Extract frontmatter
-          const yamlNode = tree.children.find((n) => n.type === "yaml");
+          // Extract frontmatter via Option pipeline
+          const yamlNode = Arr.findFirst(
+            tree.children,
+            (n): n is Yaml => n.type === "yaml",
+          );
 
-          const frontmatter: Option.Option<unknown> =
-            yamlNode && "value" in yamlNode
-              ? Option.some(
-                  yield* Effect.try({
-                    try: () => YAML.parse(yamlNode.value as string),
-                    catch: (error) =>
-                      new MarkdownParseError({
-                        reason:
-                          error instanceof Error
-                            ? error.message
-                            : String(error),
-                      }),
-                  }),
-                )
-              : Option.none();
+          const frontmatter = yield* pipe(
+            yamlNode,
+            Option.match({
+              onNone: () => Effect.succeed(Option.none<unknown>()),
+              onSome: (node) =>
+                Effect.try({
+                  try: () => YAML.parse(node.value),
+                  catch: (error) =>
+                    new MarkdownParseError({
+                      reason:
+                        error instanceof Error ? error.message : String(error),
+                    }),
+                }).pipe(Effect.map(Option.some)),
+            }),
+          );
 
-          const body = yamlNode?.position
-            ? raw.slice(yamlNode.position.end.offset).trimStart()
-            : raw;
+          const body = pipe(
+            yamlNode,
+            Option.flatMap((node) => Option.fromNullishOr(node.position)),
+            Option.map((pos) => raw.slice(pos.end.offset).trimStart()),
+            Option.getOrElse(() => raw),
+          );
 
-          // Extract links
-          const links: Array<RawLink> = [];
-          visit(tree, "link", (node) => {
-            links.push({ label: extractText(node), target: node.url });
-          });
+          // Collect links via recursive traversal (no mutation)
+          const links = collectLinks(tree.children);
 
           return {
             frontmatter,
