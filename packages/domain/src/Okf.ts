@@ -122,8 +122,19 @@ export type OkfGraph = {
   readonly unresolvedLinks: ReadonlyArray<UnresolvedLink>;
 };
 
+export const ValidationIssueSource = Schema.Literals([
+  "concept",
+  "index",
+  "log",
+  "graph",
+  "bundle",
+]);
+
+export type ValidationIssueSource = typeof ValidationIssueSource.Type;
+
 export const ValidationIssue = Schema.Struct({
   id: Schema.String,
+  source: ValidationIssueSource,
   reason: Schema.String,
   severity: Schema.Literals(["error", "warning"]),
 });
