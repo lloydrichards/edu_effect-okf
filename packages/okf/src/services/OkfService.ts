@@ -7,8 +7,8 @@ import {
   type ConceptNode,
   ConceptNode as ConceptNodeSchema,
   type IndexFile,
-  IndexFrontmatter,
   type LogFile,
+  type ValidationResult,
 } from "@repo/domain/Okf";
 import {
   Array as Arr,
@@ -71,10 +71,10 @@ export class OkfService extends Context.Service<OkfService>()(
               label: link.label,
             });
           }
-          const resolvedId = pipe(
-            path.join(parentDir(conceptId), link.target),
-            Str.replace(/\.md$/, ""),
-          );
+          const relativeTarget = link.target.startsWith("/")
+            ? link.target.slice(1)
+            : path.join(parentDir(conceptId), link.target);
+          const resolvedId = pipe(relativeTarget, Str.replace(/\.md$/, ""));
           return knownIds.has(resolvedId)
             ? ConceptLink.cases.internal.make({
                 target: resolvedId,
@@ -82,6 +82,93 @@ export class OkfService extends Context.Service<OkfService>()(
               })
             : ConceptLink.cases.broken.make({ target: resolvedId });
         };
+
+      const validateIndexFile = Effect.fn("validateIndexFile")(function* (
+        rel: string,
+        content: string,
+      ) {
+        const parsed = yield* md.parse(content);
+
+        if (Option.isNone(parsed.frontmatter)) {
+          return { path: rel, content } satisfies IndexFile;
+        }
+
+        if (rel !== "index.md") {
+          return yield* new MarkdownParseError({
+            reason: "Frontmatter is only permitted in the bundle-root index.md",
+          });
+        }
+
+        if (
+          typeof parsed.frontmatter.value !== "object" ||
+          parsed.frontmatter.value === null ||
+          Array.isArray(parsed.frontmatter.value)
+        ) {
+          return yield* new MarkdownParseError({
+            reason: "Root index frontmatter must be a YAML object",
+          });
+        }
+
+        const invalidKeys = Object.keys(parsed.frontmatter.value).filter(
+          (key) => key !== "okf_version",
+        );
+
+        if (Arr.isArrayNonEmpty(invalidKeys)) {
+          return yield* new MarkdownParseError({
+            reason: `Unsupported root index frontmatter keys: ${invalidKeys.join(", ")}`,
+          });
+        }
+
+        return yield* Schema.decodeUnknownEffect(
+          Schema.Struct({ okf_version: Schema.optional(Schema.String) }),
+        )(parsed.frontmatter.value).pipe(
+          Effect.map(({ okf_version }) => ({
+            path: rel,
+            content,
+            ...(okf_version ? { version: okf_version } : {}),
+          })),
+          Effect.mapError(
+            (error) => new MarkdownParseError({ reason: String(error) }),
+          ),
+        );
+      });
+
+      const validateLogFile = Effect.fn("validateLogFile")(function* (
+        rel: string,
+        content: string,
+      ) {
+        const parsed = yield* md.parseDocument(content);
+
+        if (Option.isSome(parsed.frontmatter)) {
+          return yield* new MarkdownParseError({
+            reason: "Frontmatter is not permitted in log.md",
+          });
+        }
+
+        const invalidDateHeading = pipe(
+          parsed.document.blocks,
+          Arr.findFirst(
+            (block) =>
+              block._tag === "Heading" &&
+              block.level === 2 &&
+              !/^\d{4}-\d{2}-\d{2}$/.test(
+                block.children
+                  .filter((child) => child._tag === "Text")
+                  .map((child) => child.value)
+                  .join("")
+                  .trim(),
+              ),
+          ),
+        );
+
+        if (Option.isSome(invalidDateHeading)) {
+          return yield* new MarkdownParseError({
+            reason: "Log date headings must use ISO 8601 YYYY-MM-DD format",
+          });
+        }
+
+        return { path: rel, content } satisfies LogFile;
+      });
 
       const loadBundle = Effect.fn("loadBundle")(function* (
         bundlePath: string,
@@ -132,35 +219,34 @@ export class OkfService extends Context.Service<OkfService>()(
               : Result.fail(entry),
         );
 
-        const indexFiles: ReadonlyArray<IndexFile> = yield* Effect.forEach(
+        const indexResults = yield* Effect.forEach(
           indexEntries,
           ({ rel, content }) =>
-            md.parse(content).pipe(
-              Effect.flatMap((parsed) =>
-                parsed.frontmatter.pipe(
-                  Option.match({
-                    onNone: () => Effect.succeed({ path: rel, content }),
-                    onSome: (fm) =>
-                      Schema.decodeUnknownEffect(IndexFrontmatter)(fm).pipe(
-                        Effect.map(({ version }) => ({
-                          path: rel,
-                          content,
-                          ...(version ? { version } : {}),
-                        })),
-                      ),
-                  }),
+            validateIndexFile(rel, content).pipe(
+              Effect.map((file) => Result.succeed(file)),
+              Effect.catchTag("MarkdownParseError", (error) =>
+                Effect.succeed(
+                  Result.fail({ file: rel, reason: error.reason }),
                 ),
-              ),
-              Effect.catchTag("MarkdownParseError", () =>
-                Effect.succeed({ path: rel, content }),
               ),
             ),
         );
 
-        const logFiles: ReadonlyArray<LogFile> = Arr.map(
+        const logResults = yield* Effect.forEach(
           logEntries,
-          ({ rel, content }) => ({ path: rel, content }),
+          ({ rel, content }) =>
+            validateLogFile(rel, content).pipe(
+              Effect.map((file) => Result.succeed(file)),
+              Effect.catchTag("MarkdownParseError", (error) =>
+                Effect.succeed(
+                  Result.fail({ file: rel, reason: error.reason }),
+                ),
+              ),
+            ),
         );
+
+        const [indexIssues, indexFiles] = Arr.partition(indexResults, (r) => r);
+        const [logIssues, logFiles] = Arr.partition(logResults, (r) => r);
 
         // 5. Parse each concept file -- single parse gets frontmatter, body, AND links
         const parseResults = yield* Effect.forEach(conceptFiles, (rel) =>
@@ -196,7 +282,11 @@ export class OkfService extends Context.Service<OkfService>()(
           }),
         );
 
-        const [issues, parsedConcepts] = Arr.partition(parseResults, (r) => r);
+        const [conceptIssues, parsedConcepts] = Arr.partition(
+          parseResults,
+          (r) => r,
+        );
+        const issues = [...indexIssues, ...logIssues, ...conceptIssues];
 
         // Fail fast on conformance issues
         if (Arr.isArrayNonEmpty(issues)) {
@@ -315,8 +405,8 @@ export class OkfService extends Context.Service<OkfService>()(
       return {
         make: Effect.fn("make")(function* (bundlePath: string) {
           const bundle = yield* loadBundle(bundlePath).pipe(
-            Effect.catchIf(
-              (e) => e._tag !== "BundleNotFound" && e._tag !== "BundleInvalid",
+            Effect.catchTag(
+              "PlatformError",
               () => new BundleNotFound({ path: bundlePath }),
             ),
           );
@@ -326,6 +416,27 @@ export class OkfService extends Context.Service<OkfService>()(
             bundle,
             graph,
           } as const;
+        }),
+        validate: Effect.fn("validate")(function* (bundlePath: string) {
+          const bundle = yield* loadBundle(bundlePath).pipe(
+            Effect.catchTag(
+              "PlatformError",
+              () => new BundleNotFound({ path: bundlePath }),
+            ),
+          );
+          const graph = yield* buildGraph(bundle);
+
+          const issues = Arr.map(graph.unresolvedLinks, (link) => ({
+            id: `${link.sourceId}->${link.targetId}`,
+            source: "graph" as const,
+            reason: `Broken internal link from ${link.sourceId} to ${link.targetId}`,
+            severity: "error" as const,
+          }));
+
+          return {
+            valid: issues.length === 0,
+            issues,
+          } satisfies ValidationResult;
         }),
       };
     }),
