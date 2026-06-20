@@ -64,6 +64,12 @@ export const IndexFile = Schema.Struct({
 
 export type IndexFile = typeof IndexFile.Type;
 
+export const IndexFrontmatter = Schema.Struct({
+  version: Schema.optional(Schema.String),
+});
+
+export type IndexFrontmatter = typeof IndexFrontmatter.Type;
+
 export const LogFile = Schema.Struct({
   path: Schema.String,
   content: Schema.String,
