@@ -25,7 +25,7 @@ export class ChromaService extends Context.Service<ChromaService>()(
 
       const headers = headersJson ? JSON.parse(headersJson) : undefined;
 
-      yield* Effect.log(
+      yield* Effect.logDebug(
         `[ChromaService] Using endpoint: ${url ? `url=${url}` : `host=${host ?? "localhost"} port=${port ?? 8000}`}`,
       );
 
