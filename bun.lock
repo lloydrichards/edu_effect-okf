@@ -20,8 +20,10 @@
       },
       "dependencies": {
         "@effect/platform-bun": "4.0.0-beta.84",
+        "@repo/ai": "workspace:*",
         "@repo/domain": "workspace:*",
         "@repo/okf": "workspace:*",
+        "@repo/rag": "workspace:*",
         "effect": "4.0.0-beta.84",
         "effect-boxes": "^0.16.1",
       },
@@ -53,6 +55,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/ai-anthropic": "4.0.0-beta.84",
+        "@effect/ai-openai": "4.0.0-beta.84",
         "@repo/domain": "workspace:*",
         "@repo/rag": "workspace:*",
         "effect": "4.0.0-beta.84",
@@ -144,6 +147,8 @@
     "@chroma-core/default-embed": ["@chroma-core/default-embed@0.1.9", "", { "dependencies": { "@chroma-core/ai-embeddings-common": "^0.1.9", "@huggingface/transformers": "^3.5.1" } }, "sha512-TBqdI9qstl06EiqeHmGZheMvAqRZDewFLn4We5JeNPDwxhrMRbZlD5mOs95z6+eyjkkDstdOjbPuZNNEDhc7FQ=="],
 
     "@effect/ai-anthropic": ["@effect/ai-anthropic@4.0.0-beta.84", "", { "peerDependencies": { "effect": "^4.0.0-beta.84" } }, "sha512-G9tIiL9wFL+imdP8p/OI5iVzdIkUo8eSwulkwQmW5DxUHcPIi1cK6HiFv3YineM2y7gYdbuYLWiIMMSySbfD8w=="],
+
+    "@effect/ai-openai": ["@effect/ai-openai@4.0.0-beta.84", "", { "peerDependencies": { "effect": "^4.0.0-beta.84" } }, "sha512-jHoLhssDe/VJdBNk7n5F0hNZ7Aqc01i96WRWpL2FTI7mjAq2uYATBaYKNZbadNvvgRXGFoaXvekVV1d18H2fYA=="],
 
     "@effect/language-service": ["@effect/language-service@0.86.2", "", { "bin": { "effect-language-service": "cli.js" } }, "sha512-SaPln+8srOqDJDUwNTDmP5e+IYpEDr9+1epGznnsLqu8xvo6VnxyWARdeLpqvZJlb0Pgy9ca7ppqvvdWbHPXAg=="],
 

@@ -10,6 +10,7 @@
   "dependencies": {
     "effect": "4.0.0-beta.84",
     "@effect/ai-anthropic": "4.0.0-beta.84",
+    "@effect/ai-openai": "4.0.0-beta.84",
     "@repo/domain": "workspace:*",
     "@repo/rag": "workspace:*"
   },
