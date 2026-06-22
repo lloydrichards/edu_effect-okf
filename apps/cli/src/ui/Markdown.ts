@@ -2,7 +2,7 @@ import type {
   MarkdownBlock,
   MarkdownDocument,
   MarkdownInline,
-} from "@repo/okf";
+} from "@repo/domain/Markdown";
 import { Array, Match, pipe, String } from "effect";
 import { Ansi, Box, Container } from "effect-boxes";
 
@@ -25,6 +25,7 @@ const renderInlineText = (children: ReadonlyArray<MarkdownInline>): string =>
         Match.tag("Strong", ({ children }) => renderInlineText(children)),
         Match.tag("Delete", ({ children }) => renderInlineText(children)),
         Match.tag("Link", ({ children }) => renderInlineText(children)),
+        Match.tag("Paragraph", ({ children }) => renderInlineText(children)),
         Match.exhaustive,
       ),
     ),

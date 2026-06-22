@@ -21,6 +21,7 @@
     "./Chat": "./src/Chat.ts",
     "./ChatRpc": "./src/ChatRpc.ts",
     "./Chunk": "./src/Chunk.ts",
+    "./Markdown": "./src/Markdown.ts",
     "./Okf": "./src/Okf.ts"
   }
 }

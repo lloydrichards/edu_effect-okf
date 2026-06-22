@@ -1,4 +1,9 @@
 import {
+  MarkdownBlock,
+  type MarkdownDocument,
+  MarkdownInline,
+} from "@repo/domain/Markdown";
+import {
   Array as Arr,
   Context,
   Data,
@@ -20,11 +25,6 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import YAML from "yaml";
-import {
-  MarkdownBlock,
-  type MarkdownDocument,
-  MarkdownInline,
-} from "../types/Markdown";
 
 export class MarkdownParseError extends Data.TaggedError("MarkdownParseError")<{
   reason: string;
