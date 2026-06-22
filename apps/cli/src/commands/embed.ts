@@ -14,7 +14,9 @@ export const embed = Command.make("embed", { bundlePath }, ({ bundlePath }) =>
     const { bundle, graph } = yield* okf.make(bundlePath);
 
     const embeddings = yield* embedder.embedMany(
-      bundle.concepts.map((c) => c.body),
+      bundle.concepts.map(
+        (c) => c.frontmatter.description ?? c.frontmatter.title ?? c.body ?? "",
+      ),
     );
 
     const collectionName = bundlePath.split("/").pop() || bundle.root;
@@ -23,7 +25,9 @@ export const embed = Command.make("embed", { bundlePath }, ({ bundlePath }) =>
       collection: collectionName,
       ids: bundle.concepts.map((c) => c.id),
       embeddings: embeddings.embeddings.map((e) => [...e.vector]),
-      documents: bundle.concepts.map((c) => c.body),
+      documents: bundle.concepts.map(
+        (c) => c.frontmatter.description ?? c.frontmatter.title ?? c.body ?? "",
+      ),
       metadatas: bundle.concepts.map((c) => ({
         graphNode: graph.nodeIndex.get(c.id) || "",
         conceptId: c.id,
