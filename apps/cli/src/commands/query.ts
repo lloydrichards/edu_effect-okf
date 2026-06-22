@@ -27,22 +27,22 @@ export const queryCommand = Command.make(
       const result = yield* rag.retrieve({
         collection: collectionName,
         embedding: [...embeddings.vector],
-        topK: 5,
+        minDistance: 1,
       });
 
       yield* Effect.log(
-        `Retrieved ${result.hits.length} hits from "${collectionName}"`,
+        `Retrieved ${result.length} hits from "${collectionName}"`,
       );
 
       // Map RAG hit IDs to graph node indices (seeds)
-      const seeds = Array.filterMap(result.hits, (hit) =>
+      const seeds = Array.filterMap(result, (hit) =>
         Result.fromNullishOr(graph.nodeIndex.get(hit.id), () => undefined),
       );
 
       // Build subgraph by composing neighborhoods of each seed
       const subgraph = Array.reduce(
         Array.map(seeds, (seed) =>
-          neighborhood(graph.graph, seed, { radius: 1 }),
+          neighborhood(graph.graph, seed, { radius: 2 }),
         ),
         Graph.directed<ConceptNode, ConceptEdge>(),
         (acc, g) => union(acc, g, (n) => n.id),
@@ -54,18 +54,65 @@ export const queryCommand = Command.make(
       });
 
       const hitSummary = pipe(
-        result.hits,
+        result,
         Array.map(
-          (hit) => `- ${hit.id} (score: ${hit.score?.toFixed(4) ?? "n/a"})`,
+          (hit) => `- ${hit.id} (score: ${hit.distance?.toFixed(4) ?? "n/a"})`,
         ),
       );
+
+      // Build a hit lookup for marking direct matches
+      const hitScores = new Map(result.map((h) => [h.id, h.distance] as const));
+
+      // Build index map: nodeIndex -> node id (for resolving edge endpoints)
+      const indexToId = new Map<Graph.NodeIndex, string>();
+      for (const [idx, node] of subgraph) {
+        indexToId.set(idx, node.id);
+      }
+
+      // Collect edges per node (keyed by source node id)
+      const edgesByNode = new Map<
+        string,
+        Array<{ target: string; kind: string; label?: string | undefined }>
+      >();
+      for (const [, edge] of Graph.edges(subgraph)) {
+        const sourceId = indexToId.get(edge.source) ?? edge.data.sourceId;
+        const targetId = indexToId.get(edge.target) ?? edge.data.targetId;
+        const entry = {
+          target: targetId,
+          kind: edge.data.kind,
+          label: edge.data.label,
+        };
+        const existing = edgesByNode.get(sourceId);
+        if (existing) existing.push(entry);
+        else edgesByNode.set(sourceId, [entry]);
+      }
+
+      // Serialize nodes with their outgoing edges embedded
+      const nodes = Array.fromIterable(subgraph).map(([, node]) => ({
+        id: node.id,
+        nodeId: graph.nodeIndex.get(node.id) ?? -1,
+        type: node.type,
+        path: node.path,
+        title: node.title,
+        description: node.description,
+        tags: node.tags,
+        isHit: hitScores.has(node.id),
+        ...(hitScores.has(node.id) ? { score: hitScores.get(node.id) } : {}),
+        edges: edgesByNode.get(node.id) ?? [],
+      }));
 
       const payload = {
         query,
         collection: collectionName,
-        seeds: result.hits.map((h) => h.id),
-        subgraph,
-        mermaid,
+        subgraph: {
+          summary: {
+            nodeCount: Graph.nodeCount(subgraph),
+            edgeCount: Graph.edgeCount(subgraph),
+            hitCount: result.length,
+            neighborCount: Graph.nodeCount(subgraph) - result.length,
+          },
+          nodes,
+        },
       };
 
       const content = yield* Box.renderPretty(
