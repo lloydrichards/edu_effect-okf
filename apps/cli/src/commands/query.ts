@@ -1,11 +1,13 @@
+import type { ConceptEdge, ConceptNode } from "@repo/domain/Okf";
 import { OkfService } from "@repo/okf";
 import { RagService } from "@repo/rag";
-import { Array, Console, Effect, Graph, Option, pipe, Result } from "effect";
+import { Array, Console, Effect, Graph, pipe, Result } from "effect";
 import { EmbeddingModel } from "effect/unstable/ai";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath, query } from "../args";
 import { json } from "../flags";
+import { neighborhood, union } from "../lib/graph-utils";
 
 export const queryCommand = Command.make(
   "query",
@@ -37,30 +39,14 @@ export const queryCommand = Command.make(
         Result.fromNullishOr(graph.nodeIndex.get(hit.id), () => undefined),
       );
 
-      // Expand seeds to include immediate neighbours (successors + predecessors)
-      const keepIds = new Set<string>(
-        result.hits
-          .map((hit) => hit.id)
-          .filter((id) => graph.nodeIndex.has(id)),
+      // Build subgraph by composing neighborhoods of each seed
+      const subgraph = Array.reduce(
+        Array.map(seeds, (seed) =>
+          neighborhood(graph.graph, seed, { radius: 1 }),
+        ),
+        Graph.directed<ConceptNode, ConceptEdge>(),
+        (acc, g) => union(acc, g, (n) => n.id),
       );
-
-      for (const seed of seeds) {
-        for (const succ of Graph.successors(graph.graph, seed)) {
-          Option.map(Graph.getNode(graph.graph, succ), (node) =>
-            keepIds.add(node.id),
-          );
-        }
-        for (const pred of Graph.predecessors(graph.graph, seed)) {
-          Option.map(Graph.getNode(graph.graph, pred), (node) =>
-            keepIds.add(node.id),
-          );
-        }
-      }
-
-      // Build subgraph containing only seeds + neighbours
-      const subgraph = Graph.mutate(graph.graph, (mutable) => {
-        Graph.filterNodes(mutable, (node) => keepIds.has(node.id));
-      });
 
       const mermaid = Graph.toMermaid(subgraph, {
         nodeLabel: (node) => node.id,
