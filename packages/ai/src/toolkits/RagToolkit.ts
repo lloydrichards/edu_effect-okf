@@ -52,11 +52,11 @@ const RetrieverTool = Tool.make("retriever", {
     ),
   }),
   success: Schema.Struct({
-    documents: Schema.Array(
+            documents: Schema.Array(
       Schema.Struct({
         id: Schema.NullOr(Schema.String),
         document: Schema.String,
-        score: Schema.NullishOr(Schema.Number),
+        distance: Schema.NullishOr(Schema.Number),
         fileName: Schema.NullOr(Schema.String),
         metadata: Schema.NullOr(DocumentMetadata),
       }),
@@ -125,22 +125,19 @@ export const RagToolkitLive = RagToolkit.toLayer(
           const retrieveResult = yield* rag.retrieve({
             collection: "uploads",
             embedding: [...embedded.vector],
-            topK: 3,
-            ...(params.filename
-              ? { where: { fileName: { $contains: params.filename } } }
-              : {}),
+            limit: 3,
           });
           yield* Effect.log(
-            `[RagToolkit] Retrieve result: hits=${retrieveResult.hits.length}`,
+            `[RagToolkit] Retrieve result: hits=${retrieveResult.length}`,
           );
           return {
             documents:
-              retrieveResult.hits.map((hit) => ({
-                id: hit.id,
+              retrieveResult.map((hit) => ({
+                id: hit.id ?? null,
                 document: hit.document || "",
-                score: hit.score,
+                distance: hit.distance,
                 fileName: readMetadataString(hit.metadata, "fileName"),
-                metadata: hit.metadata,
+                metadata: hit.metadata ?? null,
               })) ?? [],
           };
         }).pipe(

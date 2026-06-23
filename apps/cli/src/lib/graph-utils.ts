@@ -55,7 +55,8 @@ export const union = <N, E>(
 
     // Add all nodes — `that` wins on conflict
     for (const id of allNodeIds) {
-      const entry = thatMaps.byId.get(id) ?? selfMaps.byId.get(id)!;
+      const entry = thatMaps.byId.get(id) ?? selfMaps.byId.get(id);
+      if (entry === undefined) continue; // skip nodes with missing data
       newIndexMap.set(id, Graph.addNode(mutable, entry.data));
     }
 
@@ -66,8 +67,9 @@ export const union = <N, E>(
     >();
 
     for (const [, edge] of Graph.edges(self)) {
-      const sourceId = selfMaps.byIndex.get(edge.source)!;
-      const targetId = selfMaps.byIndex.get(edge.target)!;
+      const sourceId = selfMaps.byIndex.get(edge.source);
+      const targetId = selfMaps.byIndex.get(edge.target);
+      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
       edgeMap.set(edgeKey(sourceId, targetId), {
         sourceId,
         targetId,
@@ -76,8 +78,9 @@ export const union = <N, E>(
     }
 
     for (const [, edge] of Graph.edges(that)) {
-      const sourceId = thatMaps.byIndex.get(edge.source)!;
-      const targetId = thatMaps.byIndex.get(edge.target)!;
+      const sourceId = thatMaps.byIndex.get(edge.source);
+      const targetId = thatMaps.byIndex.get(edge.target);
+      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
       edgeMap.set(edgeKey(sourceId, targetId), {
         sourceId,
         targetId,
@@ -87,12 +90,10 @@ export const union = <N, E>(
 
     // Add all edges
     for (const { sourceId, targetId, data } of edgeMap.values()) {
-      Graph.addEdge(
-        mutable,
-        newIndexMap.get(sourceId)!,
-        newIndexMap.get(targetId)!,
-        data,
-      );
+      const sourceIndex = newIndexMap.get(sourceId);
+      const targetIndex = newIndexMap.get(targetId);
+      if (sourceIndex === undefined || targetIndex === undefined) continue; // skip edges with missing nodes
+      Graph.addEdge(mutable, sourceIndex, targetIndex, data);
     }
   });
 };
@@ -120,8 +121,9 @@ export const intersection = <N, E>(
   // Edge sets for both graphs
   const selfEdgeKeys = new Set<string>();
   for (const [, edge] of Graph.edges(self)) {
-    const sourceId = selfMaps.byIndex.get(edge.source)!;
-    const targetId = selfMaps.byIndex.get(edge.target)!;
+    const sourceId = selfMaps.byIndex.get(edge.source);
+    const targetId = selfMaps.byIndex.get(edge.target);
+    if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
     selfEdgeKeys.add(edgeKey(sourceId, targetId));
   }
 
@@ -130,25 +132,25 @@ export const intersection = <N, E>(
 
     // Add common nodes (self data preserved)
     for (const id of commonNodeIds) {
-      const entry = selfMaps.byId.get(id)!;
+      const entry = selfMaps.byId.get(id);
+      if (entry === undefined) continue; // skip nodes with missing data
       newIndexMap.set(id, Graph.addNode(mutable, entry.data));
     }
 
     // Add edges present in both where both endpoints are common
     for (const [, edge] of Graph.edges(that)) {
-      const sourceId = thatMaps.byIndex.get(edge.source)!;
-      const targetId = thatMaps.byIndex.get(edge.target)!;
+      const sourceId = thatMaps.byIndex.get(edge.source);
+      const targetId = thatMaps.byIndex.get(edge.target);
+      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
       if (
         commonNodeIdSet.has(sourceId) &&
         commonNodeIdSet.has(targetId) &&
         selfEdgeKeys.has(edgeKey(sourceId, targetId))
       ) {
-        Graph.addEdge(
-          mutable,
-          newIndexMap.get(sourceId)!,
-          newIndexMap.get(targetId)!,
-          edge.data,
-        );
+        const sourceIndex = newIndexMap.get(sourceId);
+        const targetIndex = newIndexMap.get(targetId);
+        if (sourceIndex === undefined || targetIndex === undefined) continue; // skip edges with missing nodes
+        Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
       }
     }
   });
@@ -170,8 +172,9 @@ export const difference = <N, E>(
   // Build that's edge set (by node IDs)
   const thatEdgeKeys = new Set<string>();
   for (const [, edge] of Graph.edges(that)) {
-    const sourceId = thatMaps.byIndex.get(edge.source)!;
-    const targetId = thatMaps.byIndex.get(edge.target)!;
+    const sourceId = thatMaps.byIndex.get(edge.source);
+    const targetId = thatMaps.byIndex.get(edge.target);
+    if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
     thatEdgeKeys.add(edgeKey(sourceId, targetId));
   }
 
@@ -185,15 +188,14 @@ export const difference = <N, E>(
 
     // Add self edges NOT in that
     for (const [, edge] of Graph.edges(self)) {
-      const sourceId = selfMaps.byIndex.get(edge.source)!;
-      const targetId = selfMaps.byIndex.get(edge.target)!;
+      const sourceId = selfMaps.byIndex.get(edge.source);
+      const targetId = selfMaps.byIndex.get(edge.target);
+      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
       if (!thatEdgeKeys.has(edgeKey(sourceId, targetId))) {
-        Graph.addEdge(
-          mutable,
-          newIndexMap.get(sourceId)!,
-          newIndexMap.get(targetId)!,
-          edge.data,
-        );
+        const sourceIndex = newIndexMap.get(sourceId);
+        const targetIndex = newIndexMap.get(targetId);
+        if (sourceIndex === undefined || targetIndex === undefined) continue; // skip edges with missing nodes
+        Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
       }
     }
   });
@@ -218,8 +220,9 @@ export const symmetricDifference = <N, E>(
     { sourceId: string; targetId: string; data: E }
   >();
   for (const [, edge] of Graph.edges(self)) {
-    const sourceId = selfMaps.byIndex.get(edge.source)!;
-    const targetId = selfMaps.byIndex.get(edge.target)!;
+    const sourceId = selfMaps.byIndex.get(edge.source);
+    const targetId = selfMaps.byIndex.get(edge.target);
+    if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
     selfEdges.set(edgeKey(sourceId, targetId), {
       sourceId,
       targetId,
@@ -232,8 +235,9 @@ export const symmetricDifference = <N, E>(
     { sourceId: string; targetId: string; data: E }
   >();
   for (const [, edge] of Graph.edges(that)) {
-    const sourceId = thatMaps.byIndex.get(edge.source)!;
-    const targetId = thatMaps.byIndex.get(edge.target)!;
+    const sourceId = thatMaps.byIndex.get(edge.source);
+    const targetId = thatMaps.byIndex.get(edge.target);
+    if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
     thatEdges.set(edgeKey(sourceId, targetId), {
       sourceId,
       targetId,
@@ -251,31 +255,28 @@ export const symmetricDifference = <N, E>(
 
     // Add all nodes — `that` wins on conflict
     for (const id of allNodeIds) {
-      const entry = thatMaps.byId.get(id) ?? selfMaps.byId.get(id)!;
+      const entry = thatMaps.byId.get(id) ?? selfMaps.byId.get(id);
+      if (entry === undefined) continue; // skip missing nodes
       newIndexMap.set(id, Graph.addNode(mutable, entry.data));
     }
 
     // Add edges in self but NOT in that
     for (const [key, { sourceId, targetId, data }] of selfEdges) {
       if (!thatEdges.has(key)) {
-        Graph.addEdge(
-          mutable,
-          newIndexMap.get(sourceId)!,
-          newIndexMap.get(targetId)!,
-          data,
-        );
+        const sourceIndex = newIndexMap.get(sourceId);
+        const targetIndex = newIndexMap.get(targetId);
+        if (sourceIndex === undefined || targetIndex === undefined) continue;
+        Graph.addEdge(mutable, sourceIndex, targetIndex, data);
       }
     }
 
     // Add edges in that but NOT in self
     for (const [key, { sourceId, targetId, data }] of thatEdges) {
       if (!selfEdges.has(key)) {
-        Graph.addEdge(
-          mutable,
-          newIndexMap.get(sourceId)!,
-          newIndexMap.get(targetId)!,
-          data,
-        );
+        const sourceIndex = newIndexMap.get(sourceId);
+        const targetIndex = newIndexMap.get(targetId);
+        if (sourceIndex === undefined || targetIndex === undefined) continue;
+        Graph.addEdge(mutable, sourceIndex, targetIndex, data);
       }
     }
   });
@@ -306,10 +307,13 @@ export const complement = <N, E>(
       for (const [tgtOldIdx, tgtData] of nodes) {
         if (srcOldIdx === tgtOldIdx) continue; // no self-loops
         if (Graph.hasEdge(self, srcOldIdx, tgtOldIdx)) continue;
+        const srcNewIdx = newIndexMap.get(srcOldIdx);
+        const tgtNewIdx = newIndexMap.get(tgtOldIdx);
+        if (srcNewIdx === undefined || tgtNewIdx === undefined) continue;
         Graph.addEdge(
           mutable,
-          newIndexMap.get(srcOldIdx)!,
-          newIndexMap.get(tgtOldIdx)!,
+          srcNewIdx,
+          tgtNewIdx,
           createEdge(srcData, tgtData),
         );
       }
@@ -372,12 +376,10 @@ export const neighborhood = <N, E>(
 
     for (const [, edge] of Graph.edges(self)) {
       if (visited.has(edge.source) && visited.has(edge.target)) {
-        Graph.addEdge(
-          mutable,
-          newIndexMap.get(edge.source)!,
-          newIndexMap.get(edge.target)!,
-          edge.data,
-        );
+        const sourceIndex = newIndexMap.get(edge.source);
+        const targetIndex = newIndexMap.get(edge.target);
+        if (sourceIndex === undefined || targetIndex === undefined) continue;
+        Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
       }
     }
   });
@@ -400,12 +402,10 @@ export const sum = <N, E>(
       selfIndexMap.set(oldIdx, Graph.addNode(mutable, data));
     }
     for (const [, edge] of Graph.edges(self)) {
-      Graph.addEdge(
-        mutable,
-        selfIndexMap.get(edge.source)!,
-        selfIndexMap.get(edge.target)!,
-        edge.data,
-      );
+      const sourceIndex = selfIndexMap.get(edge.source);
+      const targetIndex = selfIndexMap.get(edge.target);
+      if (sourceIndex === undefined || targetIndex === undefined) continue;
+      Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
     }
 
     // Add all nodes and edges from that
@@ -414,11 +414,9 @@ export const sum = <N, E>(
       thatIndexMap.set(oldIdx, Graph.addNode(mutable, data));
     }
     for (const [, edge] of Graph.edges(that)) {
-      Graph.addEdge(
-        mutable,
-        thatIndexMap.get(edge.source)!,
-        thatIndexMap.get(edge.target)!,
-        edge.data,
-      );
+      const sourceIndex = thatIndexMap.get(edge.source);
+      const targetIndex = thatIndexMap.get(edge.target);
+      if (sourceIndex === undefined || targetIndex === undefined) continue;
+      Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
     }
   });

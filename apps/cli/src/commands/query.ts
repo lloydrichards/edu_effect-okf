@@ -23,11 +23,13 @@ export const queryCommand = Command.make(
       const embeddings = yield* embedder.embed(query);
 
       const collectionName = bundlePath.split("/").pop() || bundle.root;
+      const collectionInfo = yield* rag.collectionInfo({
+        collection: collectionName,
+      });
 
       const result = yield* rag.retrieve({
         collection: collectionName,
         embedding: [...embeddings.vector],
-        minDistance: 1,
       });
 
       yield* Effect.log(
@@ -52,16 +54,6 @@ export const queryCommand = Command.make(
         nodeLabel: (node) => node.id,
         edgeLabel: (edge) => edge.label ?? edge.kind,
       });
-
-      const hitSummary = pipe(
-        result,
-        Array.map(
-          (hit) => `- ${hit.id} (score: ${hit.distance?.toFixed(4) ?? "n/a"})`,
-        ),
-      );
-
-      // Build a hit lookup for marking direct matches
-      const hitScores = new Map(result.map((h) => [h.id, h.distance] as const));
 
       // Build index map: nodeIndex -> node id (for resolving edge endpoints)
       const indexToId = new Map<Graph.NodeIndex, string>();
@@ -96,14 +88,17 @@ export const queryCommand = Command.make(
         title: node.title,
         description: node.description,
         tags: node.tags,
-        isHit: hitScores.has(node.id),
-        ...(hitScores.has(node.id) ? { score: hitScores.get(node.id) } : {}),
         edges: edgesByNode.get(node.id) ?? [],
       }));
 
       const payload = {
         query,
         collection: collectionName,
+        collectionInfo,
+        embedding: {
+          dimensions: embeddings.vector.length,
+          model: "text-embedding-3-small",
+        },
         subgraph: {
           summary: {
             nodeCount: Graph.nodeCount(subgraph),
@@ -125,7 +120,16 @@ export const queryCommand = Command.make(
               Box.left,
             ),
             Box.vcat(
-              [Box.text("Hits:"), ...hitSummary.map((line) => Box.text(line))],
+              [
+                Box.text("Hits:"),
+                ...pipe(
+                  result,
+                  Array.map(
+                    (hit) =>
+                      `- ${hit.id} (distance: ${hit.distance?.toFixed(4) ?? "n/a"})`,
+                  ),
+                ).map(Box.text),
+              ],
               Box.left,
             ),
             Box.hsep(

@@ -15,6 +15,7 @@ export class RagService extends Context.Service<RagService>()("RagService", {
       chroma.use((sdk) =>
         sdk.getOrCreateCollection({
           name,
+          metadata: { "hnsw:space": "cosine" },
         }),
       );
 
@@ -68,7 +69,7 @@ export class RagService extends Context.Service<RagService>()("RagService", {
         collection: string;
         embedding: Array<number>;
         limit?: number;
-        minDistance?: number;
+        maxDistance?: number;
       }>,
     ) {
       yield* Effect.logDebug(
@@ -107,7 +108,11 @@ export class RagService extends Context.Service<RagService>()("RagService", {
           .rows()
           .at(0)
           ?.filter((hit) =>
-            hit.distance ? hit.distance >= (input.minDistance ?? 0) : false,
+            input.maxDistance === undefined
+              ? true
+              : hit.distance !== null &&
+                hit.distance !== undefined &&
+                hit.distance <= input.maxDistance,
           ) || []
       );
     });
@@ -145,6 +150,26 @@ export class RagService extends Context.Service<RagService>()("RagService", {
       return { documents } as const;
     });
 
+    const collectionInfo = Effect.fn("collectionInfo")(function* (input: {
+      collection: string;
+    }) {
+      const collection = yield* getCollection(input.collection);
+      const count = yield* Effect.tryPromise({
+        try: () => collection.count(),
+        catch: (error) =>
+          new RagError({
+            message: `Error counting collection "${input.collection}"`,
+            cause: error,
+          }),
+      });
+
+      return {
+        collection: input.collection,
+        count,
+        metadata: (collection as { metadata?: Metadata }).metadata ?? null,
+      } as const;
+    });
+
     const deleteCollection = Effect.fn("deleteCollection")(function* (input: {
       collection: string;
     }) {
@@ -159,7 +184,13 @@ export class RagService extends Context.Service<RagService>()("RagService", {
       return { collection: input.collection } as const;
     });
 
-    return { ingest, retrieve, listDocuments, deleteCollection } as const;
+    return {
+      ingest,
+      retrieve,
+      listDocuments,
+      collectionInfo,
+      deleteCollection,
+    } as const;
   }),
 }) {
   static Default = Layer.effect(RagService)(RagService.make).pipe(
