@@ -1,9 +1,10 @@
 import { OkfService } from "@repo/okf";
 import { Array, Console, Effect, Graph, Match, Option, pipe } from "effect";
 import { Command } from "effect/unstable/cli";
-import { Box } from "effect-boxes";
+import { Box, Flex } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
 import { json } from "../flags";
+import { NeighborhoodGraph } from "../ui/NeighborhoodGraph";
 
 type DisplayNode = {
   readonly id: string;
@@ -29,19 +30,6 @@ const renderNodeList = (nodes: ReadonlyArray<DisplayNode>): Box.Box<never> =>
     nodes,
     Array.map((node) => Box.text(`- ${formatNode(node)}`)),
     Box.vcat(Box.left),
-  );
-
-const renderNeighbors = (heading: string, nodes: ReadonlyArray<DisplayNode>) =>
-  pipe(
-    nodes,
-    Array.match({
-      onEmpty: () => Box.text(`${heading}: none`),
-      onNonEmpty: (neighbors) =>
-        Box.vcat(
-          [Box.text(`${heading}:`), renderNodeList(neighbors)],
-          Box.left,
-        ),
-    }),
   );
 
 const renderPath = (
@@ -74,6 +62,44 @@ const renderGraph = (
       Box.text(mermaid),
     ],
     Box.left,
+  );
+
+const renderNeighborhood = <N extends DisplayNode, E>(
+  graph: Graph.Graph<N, E>,
+  nodeIndex: Graph.NodeIndex,
+  direction: "incoming" | "outgoing" | "both",
+  radius: number,
+): Box.Box<never> =>
+  NeighborhoodGraph({
+    graph,
+    nodeIndex,
+    radius,
+    direction,
+    nodeLabel: (node) => node.id,
+  });
+
+const renderNeighborhoodPlain = <N extends DisplayNode, E>(
+  graph: Graph.Graph<N, E>,
+  nodeIndex: Graph.NodeIndex,
+  direction: "incoming" | "outgoing" | "both",
+  radius: number,
+): Box.Box<never> =>
+  Box.text(
+    Box.renderPlainSync(
+      renderNeighborhood(graph, nodeIndex, direction, radius),
+    ),
+  );
+
+const rootNodes = <N, E>(
+  graph: Graph.Graph<N, E>,
+): ReadonlyArray<readonly [Graph.NodeIndex, N]> =>
+  pipe(
+    Array.fromIterable(graph),
+    Array.filter(
+      ([nodeIndex]) =>
+        (graph.reverseAdjacency.get(nodeIndex) ?? []).length === 0 &&
+        (graph.adjacency.get(nodeIndex) ?? []).length > 0,
+    ),
   );
 
 const neighbors = Command.make(
@@ -140,16 +166,16 @@ const neighbors = Command.make(
       };
 
       const content = yield* Box.renderPretty(
-        Box.vcat(
+        Box.vsep(
           [
             Box.hsep(
               [Box.text("Concept:"), Box.text(formatNode(node))],
               1,
               Box.left,
             ),
-            renderNeighbors("Incoming", incoming),
-            renderNeighbors("Outgoing", outgoing),
+            renderNeighborhoodPlain(graph.graph, nodeIndex, "both", 2),
           ],
+          1,
           Box.left,
         ),
       );
@@ -164,6 +190,68 @@ const neighbors = Command.make(
 ).pipe(
   Command.withDescription("Print neighbors from a concept to another concept"),
 );
+
+const topologies = Command.make(
+  "topologies",
+  { bundlePath, json },
+  ({ bundlePath, json }) =>
+    Effect.gen(function* () {
+      const okf = yield* OkfService;
+      const { bundle, graph } = yield* okf.make(bundlePath);
+      const roots = pipe(rootNodes(graph.graph), Array.take(3));
+
+      const payload = {
+        bundle: bundle.root,
+        roots: roots.map(([nodeIndex, node]) => ({
+          nodeIndex,
+          node,
+          outgoingCount: (graph.graph.adjacency.get(nodeIndex) ?? []).length,
+        })),
+      };
+
+      const charts = roots.map(([nodeIndex, node], index) =>
+        Flex.fill(
+          (width) =>
+            Box.vsep(
+              [
+                Box.text(`${index + 1}. ${formatNode(node)}`).pipe(
+                  Box.truncate(width, Box.left),
+                ),
+                renderNeighborhoodPlain(graph.graph, nodeIndex, "outgoing", 3),
+              ],
+              1,
+              Box.left,
+            ),
+          1,
+        ),
+      );
+
+      const content = yield* Box.renderPretty(
+        Box.vsep(
+          [
+            Box.hsep([Box.text("Bundle:"), Box.text(bundle.root)], 1, Box.left),
+            Box.hsep(
+              [Box.text("Root Topologies:"), Box.text(roots.length.toString())],
+              1,
+              Box.left,
+            ),
+            charts.length === 0
+              ? Box.text("No top-level topologies found.")
+              : Flex.row(charts, 180, { gap: 2 }),
+          ],
+          1,
+          Box.left,
+        ),
+      );
+
+      yield* Console.log(
+        Match.value(json).pipe(
+          Match.when(true, () => JSON.stringify(payload, null, 2)),
+          Match.orElse(() => content),
+        ),
+      );
+    }),
+).pipe(Command.withDescription("Print top-level graph topology neighborhoods"));
 
 const path = Command.make(
   "path",
@@ -278,6 +366,6 @@ export const graph = Command.make(
       );
     }),
 ).pipe(
-  Command.withSubcommands([neighbors, path]),
+  Command.withSubcommands([neighbors, path, topologies]),
   Command.withDescription("Print a graph of concepts and their relationships"),
 );

@@ -4,10 +4,11 @@ import { RagService } from "@repo/rag";
 import { Array, Console, Effect, Graph, pipe, Result } from "effect";
 import { EmbeddingModel } from "effect/unstable/ai";
 import { Command } from "effect/unstable/cli";
-import { Box } from "effect-boxes";
+import { Box, Flex } from "effect-boxes";
 import { bundlePath, query } from "../args";
 import { json } from "../flags";
 import { neighborhood, union } from "../lib/graph-utils";
+import { NeighborhoodGraph } from "../ui/NeighborhoodGraph";
 
 export const queryCommand = Command.make(
   "query",
@@ -107,8 +108,45 @@ export const queryCommand = Command.make(
             neighborCount: Graph.nodeCount(subgraph) - result.length,
           },
           nodes,
+          mermaid,
         },
       };
+
+      const hitCharts = pipe(
+        result,
+        Array.filterMap((hit) =>
+          Result.fromNullishOr(
+            graph.nodeIndex.get(hit.id),
+            () => undefined,
+          ).pipe(Result.map((nodeIndex) => ({ hit, nodeIndex }))),
+        ),
+        Array.map(({ hit, nodeIndex }, index) =>
+          Flex.fill((width) => {
+            const labelWidth = Math.max(8, width - 8);
+            const truncateLabel = (label: string) =>
+              label.length > labelWidth
+                ? `${label.slice(0, labelWidth - 1)}…`
+                : label;
+
+            return Box.vsep(
+              [
+                Box.text(
+                  `${index + 1}. ${hit.id} (${hit.distance?.toFixed(4) ?? "n/a"})`,
+                ).pipe(Box.truncate(width, Box.left)),
+                NeighborhoodGraph({
+                  graph: graph.graph,
+                  nodeIndex,
+                  radius: 3,
+                  direction: "both",
+                  nodeLabel: (node) => truncateLabel(node.id),
+                }),
+              ],
+              1,
+              Box.left,
+            );
+          }, 1),
+        ),
+      );
 
       const content = yield* Box.renderPretty(
         Box.vsep(
@@ -121,14 +159,10 @@ export const queryCommand = Command.make(
             ),
             Box.vcat(
               [
-                Box.text("Hits:"),
-                ...pipe(
-                  result,
-                  Array.map(
-                    (hit) =>
-                      `- ${hit.id} (distance: ${hit.distance?.toFixed(4) ?? "n/a"})`,
-                  ),
-                ).map(Box.text),
+                Box.text("Top Local Neighborhoods:"),
+                hitCharts.length === 0
+                  ? Box.text("No graph nodes found for retrieved hits.")
+                  : Flex.row(hitCharts, 160, { gap: 2 }),
               ],
               Box.left,
             ),
@@ -152,7 +186,6 @@ export const queryCommand = Command.make(
               1,
               Box.left,
             ),
-            Box.text(mermaid),
           ],
           1,
           Box.left,
