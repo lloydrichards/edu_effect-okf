@@ -7,7 +7,7 @@ import { Command } from "effect/unstable/cli";
 import { Box, Flex } from "effect-boxes";
 import { bundlePath, query } from "../args";
 import { json } from "../flags";
-import { neighborhood, union } from "../lib/graph-utils";
+import { compose, neighborhood } from "../lib/graph-utils";
 import { NeighborhoodGraph } from "../ui/NeighborhoodGraph";
 
 export const queryCommand = Command.make(
@@ -48,7 +48,7 @@ export const queryCommand = Command.make(
           neighborhood(graph.graph, seed, { radius: 2 }),
         ),
         Graph.directed<ConceptNode, ConceptEdge>(),
-        (acc, g) => union(acc, g, (n) => n.id),
+        (acc, g) => compose(acc, g, (n) => n.id),
       );
 
       const mermaid = Graph.toMermaid(subgraph, {
