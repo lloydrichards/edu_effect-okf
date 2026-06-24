@@ -17,7 +17,7 @@ type NodeMaps<N> = {
 // ---------------------------------------------------------------------------
 
 const buildNodeMaps = <N, E>(
-  graph: Graph.DirectedGraph<N, E>,
+  graph: Graph.Graph<N, E>,
   nodeId: NodeId<N>,
 ): NodeMaps<N> => {
   const byId = new Map<string, { index: Graph.NodeIndex; data: N }>();
@@ -33,28 +33,25 @@ const buildNodeMaps = <N, E>(
 const edgeKey = (sourceId: string, targetId: string): string =>
   `${sourceId}\0${targetId}`;
 
-// ---------------------------------------------------------------------------
-// union: G1 ∪ G2 = (V1 ∪ V2, E1 ∪ E2)
-// Overlapping nodes/edges: `that` takes precedence.
-// ---------------------------------------------------------------------------
-
-export const union = Function.dual<
+/**
+ * Returns the union of two graphs, merging nodes by `nodeId`.
+ *
+ * Nodes and directed edges with the same identity use data from `that`.
+ */
+export const compose = Function.dual<
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-  ) => (
-    that: Graph.DirectedGraph<N, E>,
-    nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+  ) => (that: Graph.Graph<N, E>, nodeId: NodeId<N>) => Graph.Graph<N, E>,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>
+  ) => Graph.Graph<N, E>
 >(
   3,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
   ) => {
     const selfMaps = buildNodeMaps(self, nodeId);
@@ -68,14 +65,12 @@ export const union = Function.dual<
     return Graph.directed<N, E>((mutable) => {
       const newIndexMap = new Map<string, Graph.NodeIndex>();
 
-      // Add all nodes — `that` wins on conflict
       for (const id of allNodeIds) {
         const entry = thatMaps.byId.get(id) ?? selfMaps.byId.get(id);
-        if (entry === undefined) continue; // skip nodes with missing data
+        if (entry === undefined) continue;
         newIndexMap.set(id, Graph.addNode(mutable, entry.data));
       }
 
-      // Collect edges from both, `that` wins on conflict
       const edgeMap = new Map<
         string,
         { sourceId: string; targetId: string; data: E }
@@ -84,7 +79,7 @@ export const union = Function.dual<
       for (const [, edge] of Graph.edges(self)) {
         const sourceId = selfMaps.byIndex.get(edge.source);
         const targetId = selfMaps.byIndex.get(edge.target);
-        if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+        if (sourceId === undefined || targetId === undefined) continue;
         edgeMap.set(edgeKey(sourceId, targetId), {
           sourceId,
           targetId,
@@ -95,7 +90,7 @@ export const union = Function.dual<
       for (const [, edge] of Graph.edges(that)) {
         const sourceId = thatMaps.byIndex.get(edge.source);
         const targetId = thatMaps.byIndex.get(edge.target);
-        if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+        if (sourceId === undefined || targetId === undefined) continue;
         edgeMap.set(edgeKey(sourceId, targetId), {
           sourceId,
           targetId,
@@ -103,75 +98,67 @@ export const union = Function.dual<
         });
       }
 
-      // Add all edges
       for (const { sourceId, targetId, data } of edgeMap.values()) {
         const sourceIndex = newIndexMap.get(sourceId);
         const targetIndex = newIndexMap.get(targetId);
-        if (sourceIndex === undefined || targetIndex === undefined) continue; // skip edges with missing nodes
+        if (sourceIndex === undefined || targetIndex === undefined) continue;
         Graph.addEdge(mutable, sourceIndex, targetIndex, data);
       }
     });
   },
 );
 
-// ---------------------------------------------------------------------------
-// intersection: G1 ∩ G2 = (V1 ∩ V2, E1 ∩ E2)
-// Keeps only nodes present in both. Keeps edges where both endpoints are in
-// the intersection AND the edge exists in both graphs.
-// ---------------------------------------------------------------------------
-
+/**
+ * Returns the intersection of two graphs, matching nodes by `nodeId`.
+ *
+ * Keeps shared directed edges by endpoint identity. Node data comes from `self`;
+ * edge data comes from `that`.
+ */
 export const intersection = dual<
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-  ) => (
-    that: Graph.DirectedGraph<N, E>,
-    nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+  ) => (that: Graph.Graph<N, E>, nodeId: NodeId<N>) => Graph.Graph<N, E>,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>
+  ) => Graph.Graph<N, E>
 >(
   3,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
   ) => {
     const selfMaps = buildNodeMaps(self, nodeId);
     const thatMaps = buildNodeMaps(that, nodeId);
 
-    // Node intersection
     const commonNodeIds = [...selfMaps.byId.keys()].filter((id) =>
       thatMaps.byId.has(id),
     );
     const commonNodeIdSet = new Set(commonNodeIds);
 
-    // Edge sets for both graphs
     const selfEdgeKeys = new Set<string>();
     for (const [, edge] of Graph.edges(self)) {
       const sourceId = selfMaps.byIndex.get(edge.source);
       const targetId = selfMaps.byIndex.get(edge.target);
-      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+      if (sourceId === undefined || targetId === undefined) continue;
       selfEdgeKeys.add(edgeKey(sourceId, targetId));
     }
 
     return Graph.directed<N, E>((mutable) => {
       const newIndexMap = new Map<string, Graph.NodeIndex>();
 
-      // Add common nodes (self data preserved)
       for (const id of commonNodeIds) {
         const entry = selfMaps.byId.get(id);
-        if (entry === undefined) continue; // skip nodes with missing data
+        if (entry === undefined) continue;
         newIndexMap.set(id, Graph.addNode(mutable, entry.data));
       }
 
-      // Add edges present in both where both endpoints are common
       for (const [, edge] of Graph.edges(that)) {
         const sourceId = thatMaps.byIndex.get(edge.source);
         const targetId = thatMaps.byIndex.get(edge.target);
-        if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+        if (sourceId === undefined || targetId === undefined) continue;
         if (
           commonNodeIdSet.has(sourceId) &&
           commonNodeIdSet.has(targetId) &&
@@ -179,7 +166,7 @@ export const intersection = dual<
         ) {
           const sourceIndex = newIndexMap.get(sourceId);
           const targetIndex = newIndexMap.get(targetId);
-          if (sourceIndex === undefined || targetIndex === undefined) continue; // skip edges with missing nodes
+          if (sourceIndex === undefined || targetIndex === undefined) continue;
           Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
         }
       }
@@ -187,59 +174,55 @@ export const intersection = dual<
   },
 );
 
-// ---------------------------------------------------------------------------
-// difference: G1 \ G2 = (V1, E1 \ E2)
-// Keeps all nodes from self. Removes edges that also exist in that.
-// ---------------------------------------------------------------------------
-
+/**
+ * Returns `self` without edges also present in `that`.
+ *
+ * All nodes from `self` are preserved. Directed edges are matched by endpoint
+ * identity; edge data is ignored.
+ */
 export const difference = dual<
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-  ) => (
-    that: Graph.DirectedGraph<N, E>,
-    nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+  ) => (that: Graph.Graph<N, E>, nodeId: NodeId<N>) => Graph.Graph<N, E>,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>
+  ) => Graph.Graph<N, E>
 >(
   3,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
   ) => {
     const selfMaps = buildNodeMaps(self, nodeId);
     const thatMaps = buildNodeMaps(that, nodeId);
 
-    // Build that's edge set (by node IDs)
     const thatEdgeKeys = new Set<string>();
+
     for (const [, edge] of Graph.edges(that)) {
       const sourceId = thatMaps.byIndex.get(edge.source);
       const targetId = thatMaps.byIndex.get(edge.target);
-      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+      if (sourceId === undefined || targetId === undefined) continue;
       thatEdgeKeys.add(edgeKey(sourceId, targetId));
     }
 
     return Graph.directed<N, E>((mutable) => {
       const newIndexMap = new Map<string, Graph.NodeIndex>();
 
-      // Add all self nodes
       for (const [id, entry] of selfMaps.byId) {
         newIndexMap.set(id, Graph.addNode(mutable, entry.data));
       }
 
-      // Add self edges NOT in that
       for (const [, edge] of Graph.edges(self)) {
         const sourceId = selfMaps.byIndex.get(edge.source);
         const targetId = selfMaps.byIndex.get(edge.target);
-        if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+        if (sourceId === undefined || targetId === undefined) continue;
         if (!thatEdgeKeys.has(edgeKey(sourceId, targetId))) {
           const sourceIndex = newIndexMap.get(sourceId);
           const targetIndex = newIndexMap.get(targetId);
-          if (sourceIndex === undefined || targetIndex === undefined) continue; // skip edges with missing nodes
+          if (sourceIndex === undefined || targetIndex === undefined) continue;
           Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
         }
       }
@@ -247,41 +230,40 @@ export const difference = dual<
   },
 );
 
-// ---------------------------------------------------------------------------
-// symmetricDifference: G1 △ G2 = (V1 ∪ V2, (E1 \ E2) ∪ (E2 \ E1))
-// Keeps all nodes from both. Keeps edges in exactly one graph.
-// ---------------------------------------------------------------------------
-
+/**
+ * Returns the symmetric difference of two directed graphs.
+ *
+ * Keeps nodes from both graphs and directed edges present in exactly one graph.
+ * Overlapping nodes use data from `that`.
+ */
 export const symmetricDifference = dual<
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
-    nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+  ) => (that: Graph.Graph<N, E>, nodeId: NodeId<N>) => Graph.Graph<N, E>,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
-  ) => Graph.DirectedGraph<N, E>
+  ) => Graph.Graph<N, E>
 >(
   3,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    that: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+    that: Graph.Graph<N, E>,
     nodeId: NodeId<N>,
   ) => {
     const selfMaps = buildNodeMaps(self, nodeId);
     const thatMaps = buildNodeMaps(that, nodeId);
 
-    // Build edge sets for both
     const selfEdges = new Map<
       string,
       { sourceId: string; targetId: string; data: E }
     >();
+
     for (const [, edge] of Graph.edges(self)) {
       const sourceId = selfMaps.byIndex.get(edge.source);
       const targetId = selfMaps.byIndex.get(edge.target);
-      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+      if (sourceId === undefined || targetId === undefined) continue;
       selfEdges.set(edgeKey(sourceId, targetId), {
         sourceId,
         targetId,
@@ -296,7 +278,7 @@ export const symmetricDifference = dual<
     for (const [, edge] of Graph.edges(that)) {
       const sourceId = thatMaps.byIndex.get(edge.source);
       const targetId = thatMaps.byIndex.get(edge.target);
-      if (sourceId === undefined || targetId === undefined) continue; // skip edges with missing nodes
+      if (sourceId === undefined || targetId === undefined) continue;
       thatEdges.set(edgeKey(sourceId, targetId), {
         sourceId,
         targetId,
@@ -312,14 +294,12 @@ export const symmetricDifference = dual<
     return Graph.directed<N, E>((mutable) => {
       const newIndexMap = new Map<string, Graph.NodeIndex>();
 
-      // Add all nodes — `that` wins on conflict
       for (const id of allNodeIds) {
         const entry = thatMaps.byId.get(id) ?? selfMaps.byId.get(id);
-        if (entry === undefined) continue; // skip missing nodes
+        if (entry === undefined) continue;
         newIndexMap.set(id, Graph.addNode(mutable, entry.data));
       }
 
-      // Add edges in self but NOT in that
       for (const [key, { sourceId, targetId, data }] of selfEdges) {
         if (!thatEdges.has(key)) {
           const sourceIndex = newIndexMap.get(sourceId);
@@ -329,7 +309,6 @@ export const symmetricDifference = dual<
         }
       }
 
-      // Add edges in that but NOT in self
       for (const [key, { sourceId, targetId, data }] of thatEdges) {
         if (!selfEdges.has(key)) {
           const sourceIndex = newIndexMap.get(sourceId);
@@ -342,37 +321,32 @@ export const symmetricDifference = dual<
   },
 );
 
-// ---------------------------------------------------------------------------
-// complement: G̅ = (V, all ordered pairs of distinct vertices \ E)
-// Produces every directed edge that does NOT exist in the input.
-// Warning: O(n²) edges for sparse graphs.
-// ---------------------------------------------------------------------------
-
+/**
+ * Returns the directed complement over the existing node set.
+ *
+ * Adds every missing edge between distinct nodes. Edge data is produced by
+ * `createEdge`.
+ */
 export const complement = dual<
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-  ) => (createEdge: (source: N, target: N) => E) => Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
+  ) => (createEdge: (source: N, target: N) => E) => Graph.Graph<N, E>,
   <N, E>(
-    self: Graph.DirectedGraph<N, E>,
+    self: Graph.Graph<N, E>,
     createEdge: (source: N, target: N) => E,
-  ) => Graph.DirectedGraph<N, E>
+  ) => Graph.Graph<N, E>
 >(
   2,
-  <N, E>(
-    self: Graph.DirectedGraph<N, E>,
-    createEdge: (source: N, target: N) => E,
-  ) => {
+  <N, E>(self: Graph.Graph<N, E>, createEdge: (source: N, target: N) => E) => {
     const nodes = [...self];
 
     return Graph.directed<N, E>((mutable) => {
       const newIndexMap = new Map<Graph.NodeIndex, Graph.NodeIndex>();
 
-      // Add all nodes
       for (const [oldIdx, data] of nodes) {
         newIndexMap.set(oldIdx, Graph.addNode(mutable, data));
       }
 
-      // Add edges for all non-existing pairs
       for (const [srcOldIdx, srcData] of nodes) {
         for (const [tgtOldIdx, tgtData] of nodes) {
           if (srcOldIdx === tgtOldIdx) continue; // no self-loops
@@ -392,13 +366,14 @@ export const complement = dual<
   },
 );
 
-// ---------------------------------------------------------------------------
-// neighborhood: G[N, r] = (V', E') where V' = {v | d(v, N) ≤ r} and E' = {e | e ⊆ V'}
-// Returns the induced subgraph of all nodes within a given radius of a node.
-// ---------------------------------------------------------------------------
-
 export type NeighborhoodDirection = "outgoing" | "incoming" | "both";
 
+/**
+ * Returns the induced subgraph containing nodes within `radius` of `nodeIndex`.
+ *
+ * `direction` controls traversal, and the result keeps all original edges whose
+ * endpoints are both reached.
+ */
 export const neighborhood = dual<
   <N, E>(
     self: Graph.DirectedGraph<N, E>,
@@ -412,7 +387,7 @@ export const neighborhood = dual<
     options?: { radius?: number; direction?: NeighborhoodDirection },
   ) => Graph.DirectedGraph<N, E>
 >(
-  3,
+  (args) => args.length >= 2,
   <N, E>(
     self: Graph.DirectedGraph<N, E>,
     nodeIndex: Graph.NodeIndex,
@@ -421,9 +396,9 @@ export const neighborhood = dual<
     const radius = options?.radius ?? 1;
     const direction = options?.direction ?? "both";
 
-    // BFS to find all nodes within radius
     const visited = new Set<Graph.NodeIndex>();
     let frontier = new Set<Graph.NodeIndex>([nodeIndex]);
+
     visited.add(nodeIndex);
 
     for (let depth = 0; depth < radius; depth++) {
@@ -450,13 +425,17 @@ export const neighborhood = dual<
       if (frontier.size === 0) break;
     }
 
-    // Build induced subgraph: include all edges between visited nodes
     return Graph.directed<N, E>((mutable) => {
       const newIndexMap = new Map<Graph.NodeIndex, Graph.NodeIndex>();
 
       for (const oldIdx of visited) {
-        const nodeData = Option.getOrThrow(Graph.getNode(self, oldIdx));
-        newIndexMap.set(oldIdx, Graph.addNode(mutable, nodeData));
+        newIndexMap.set(
+          oldIdx,
+          Graph.addNode(
+            mutable,
+            Option.getOrThrow(Graph.getNode(self, oldIdx)),
+          ),
+        );
       }
 
       for (const [, edge] of Graph.edges(self)) {
@@ -471,12 +450,12 @@ export const neighborhood = dual<
   },
 );
 
-// ---------------------------------------------------------------------------
-// sum (disjoint union): G1 + G2
-// Always produces disconnected components. No node merging — all nodes from
-// both graphs are added regardless of identity.
-// ---------------------------------------------------------------------------
-
+/**
+ * Returns the disjoint union of two directed graphs.
+ *
+ * No node identity function is used; equal node data still produces distinct
+ * nodes.
+ */
 export const sum = dual<
   <N, E>(
     self: Graph.DirectedGraph<N, E>,
@@ -485,30 +464,30 @@ export const sum = dual<
     self: Graph.DirectedGraph<N, E>,
     that: Graph.DirectedGraph<N, E>,
   ) => Graph.DirectedGraph<N, E>
->(2, <N, E>(self: Graph.DirectedGraph<N, E>, that: Graph.DirectedGraph<N, E>) =>
-  Graph.directed<N, E>((mutable) => {
-    // Add all nodes and edges from self
-    const selfIndexMap = new Map<Graph.NodeIndex, Graph.NodeIndex>();
-    for (const [oldIdx, data] of self) {
-      selfIndexMap.set(oldIdx, Graph.addNode(mutable, data));
-    }
-    for (const [, edge] of Graph.edges(self)) {
-      const sourceIndex = selfIndexMap.get(edge.source);
-      const targetIndex = selfIndexMap.get(edge.target);
-      if (sourceIndex === undefined || targetIndex === undefined) continue;
-      Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
-    }
+>(
+  2,
+  <N, E>(self: Graph.DirectedGraph<N, E>, that: Graph.DirectedGraph<N, E>) => {
+    const copyInto = (
+      mutable: Graph.MutableDirectedGraph<N, E>,
+      graph: Graph.DirectedGraph<N, E>,
+    ) => {
+      const indexMap = new Map<Graph.NodeIndex, Graph.NodeIndex>();
 
-    // Add all nodes and edges from that
-    const thatIndexMap = new Map<Graph.NodeIndex, Graph.NodeIndex>();
-    for (const [oldIdx, data] of that) {
-      thatIndexMap.set(oldIdx, Graph.addNode(mutable, data));
-    }
-    for (const [, edge] of Graph.edges(that)) {
-      const sourceIndex = thatIndexMap.get(edge.source);
-      const targetIndex = thatIndexMap.get(edge.target);
-      if (sourceIndex === undefined || targetIndex === undefined) continue;
-      Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
-    }
-  }),
+      for (const [oldIndex, data] of Graph.nodes(graph)) {
+        indexMap.set(oldIndex, Graph.addNode(mutable, data));
+      }
+
+      for (const [, edge] of Graph.edges(graph)) {
+        const sourceIndex = indexMap.get(edge.source);
+        const targetIndex = indexMap.get(edge.target);
+        if (sourceIndex === undefined || targetIndex === undefined) continue;
+        Graph.addEdge(mutable, sourceIndex, targetIndex, edge.data);
+      }
+    };
+
+    return Graph.directed<N, E>((mutable) => {
+      copyInto(mutable, self);
+      copyInto(mutable, that);
+    });
+  },
 );

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Graph, pipe } from "effect";
+import { Graph } from "effect";
 import {
   complement,
+  compose,
   difference,
   intersection,
   neighborhood,
   sum,
   symmetricDifference,
-  union,
 } from "./graph-utils";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +36,12 @@ const mkGraph = (
       idx.set(n.id, Graph.addNode(m, n));
     }
     for (const [src, tgt, data] of edges) {
-      Graph.addEdge(m, idx.get(src)!, idx.get(tgt)!, data);
+      const sourceIndex = idx.get(src);
+      const targetIndex = idx.get(tgt);
+      if (sourceIndex === undefined || targetIndex === undefined) {
+        throw new Error(`Unknown edge endpoint: ${src}->${tgt}`);
+      }
+      Graph.addEdge(m, sourceIndex, targetIndex, data);
     }
   });
 
@@ -67,11 +72,23 @@ const getEdgeKeys = (g: Graph.DirectedGraph<N, E>): Set<string> => {
 // ---------------------------------------------------------------------------
 
 describe("compose", () => {
+  it("is an alias for overlap-tolerant union", () => {
+    const g1 = mkGraph([mkNode("a")], []);
+    const g2 = mkGraph([mkNode("a", "from-that")], []);
+
+    const result = compose(g1, g2, nodeId);
+
+    expect(getNodeIds(result)).toEqual(new Set(["a"]));
+    for (const [, data] of result) {
+      expect(data.label).toBe("from-that");
+    }
+  });
+
   it("merges disjoint graphs", () => {
     const g1 = mkGraph([mkNode("a"), mkNode("b")], [["a", "b", mkEdge(1)]]);
     const g2 = mkGraph([mkNode("c"), mkNode("d")], [["c", "d", mkEdge(2)]]);
 
-    const result = union(g1, g2, nodeId);
+    const result = compose(g1, g2, nodeId);
 
     expect(getNodeIds(result)).toEqual(new Set(["a", "b", "c", "d"]));
     expect(getEdgeKeys(result)).toEqual(new Set(["a->b", "c->d"]));
@@ -87,7 +104,7 @@ describe("compose", () => {
       [["a", "c", mkEdge(2)]],
     );
 
-    const result = union(g1, g2, nodeId);
+    const result = compose(g1, g2, nodeId);
 
     expect(getNodeIds(result)).toEqual(new Set(["a", "b", "c"]));
     expect(getEdgeKeys(result)).toEqual(new Set(["a->b", "a->c"]));
@@ -104,7 +121,7 @@ describe("compose", () => {
     const g1 = mkGraph([mkNode("a"), mkNode("b")], [["a", "b", mkEdge(10)]]);
     const g2 = mkGraph([mkNode("a"), mkNode("b")], [["a", "b", mkEdge(99)]]);
 
-    const result = union(g1, g2, nodeId);
+    const result = compose(g1, g2, nodeId);
 
     for (const [, edge] of Graph.edges(result)) {
       expect(edge.data.weight).toBe(99);
@@ -115,7 +132,7 @@ describe("compose", () => {
     const g1 = mkGraph([mkNode("a")], []);
     const empty = mkGraph([], []);
 
-    const result = union(g1, empty, nodeId);
+    const result = compose(g1, empty, nodeId);
     expect(getNodeIds(result)).toEqual(new Set(["a"]));
     expect(Graph.edgeCount(result)).toBe(0);
   });
@@ -273,7 +290,7 @@ describe("complement", () => {
       ],
     );
 
-    const result = complement(g, (src, tgt) => ({ weight: 0 }));
+    const result = complement(g, () => ({ weight: 0 }));
 
     expect(getNodeIds(result)).toEqual(new Set(["a", "b", "c"]));
     // 3 nodes = 6 possible directed edges - 3 existing = 3 complement edges
