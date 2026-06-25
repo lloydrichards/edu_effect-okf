@@ -10,7 +10,12 @@ import {
 } from "effect";
 import { Prompt } from "effect/unstable/cli";
 import { Ansi, Box, Cmd, Flex } from "effect-boxes";
+import {
+  ConceptSummaryCard,
+  type ConceptSummaryCardOptions,
+} from "./ui/ConceptSummaryCard";
 import { NeighborhoodGraph } from "./ui/NeighborhoodGraph";
+import { NeighborSummaryCard } from "./ui/NeighborSummaryCard";
 
 const Action = Data.taggedEnum<Prompt.ActionDefinition>();
 
@@ -20,6 +25,11 @@ export type NeighborhoodExplorerOptions<N, E> = {
   readonly radius?: number | undefined;
   readonly message?: string | undefined;
   readonly nodeLabel: (node: N) => string;
+  readonly nodeSummary?:
+    | ((
+        node: N,
+      ) => Omit<ConceptSummaryCardOptions, "incoming" | "outgoing" | "width">)
+    | undefined;
 };
 
 type Direction = "self" | "incoming" | "outgoing";
@@ -35,6 +45,108 @@ type NeighborhoodExplorerState = {
   readonly direction: Direction;
   readonly path: ReadonlyArray<Graph.NodeIndex>;
   readonly cursor: number;
+  readonly history: ReadonlyArray<Graph.NodeIndex>;
+  readonly historyCursor: number;
+};
+
+const immediateNeighbors = <N, E>(
+  graph: Graph.Graph<N, E>,
+  center: Graph.NodeIndex,
+  radius: number,
+): ReadonlyArray<NavigationTarget> => [
+  { nodeIndex: center, direction: "self", path: [] },
+  ...outgoingRootTargets(graph, center, radius),
+  ...incomingRootTargets(graph, center, radius),
+];
+
+const outgoingRootTargets = <N, E>(
+  graph: Graph.Graph<N, E>,
+  center: Graph.NodeIndex,
+  radius: number,
+): ReadonlyArray<NavigationTarget> => {
+  const visit = (
+    target: NavigationTarget,
+    depth: number,
+  ): ReadonlyArray<NavigationTarget> =>
+    depth >= radius
+      ? []
+      : pipe(
+          Graph.successors(graph, target.nodeIndex),
+          Arr.filter(
+            (nodeIndex) =>
+              nodeIndex !== center && !target.path.includes(nodeIndex),
+          ),
+          Arr.flatMap((nodeIndex) => {
+            const child = {
+              nodeIndex,
+              direction: "outgoing" as const,
+              path: [...target.path, nodeIndex],
+            };
+
+            return [child, ...visit(child, depth + 1)];
+          }),
+        );
+
+  const roots = Graph.successors(graph, center).map((nodeIndex) => ({
+    nodeIndex,
+    direction: "outgoing" as const,
+    path: [nodeIndex],
+  }));
+
+  return radius <= 0
+    ? []
+    : pipe(
+        roots,
+        Arr.flatMap((root) => [root, ...visit(root, 1)]),
+      );
+};
+
+const incomingRootTargets = <N, E>(
+  graph: Graph.Graph<N, E>,
+  center: Graph.NodeIndex,
+  radius: number,
+): ReadonlyArray<NavigationTarget> => {
+  const visit = (
+    target: NavigationTarget,
+    depth: number,
+  ): ReadonlyArray<NavigationTarget> => {
+    if (depth >= radius) return [target];
+
+    const parents = pipe(
+      Graph.predecessors(graph, target.nodeIndex),
+      Arr.filter(
+        (nodeIndex) => nodeIndex !== center && !target.path.includes(nodeIndex),
+      ),
+      Arr.flatMap((nodeIndex) =>
+        visit(
+          {
+            nodeIndex,
+            direction: "incoming" as const,
+            path: [...target.path, nodeIndex],
+          },
+          depth + 1,
+        ),
+      ),
+    );
+
+    return [...parents, target];
+  };
+
+  return radius <= 0
+    ? []
+    : pipe(
+        Graph.predecessors(graph, center),
+        Arr.flatMap((nodeIndex) =>
+          visit(
+            {
+              nodeIndex,
+              direction: "incoming" as const,
+              path: [nodeIndex],
+            },
+            1,
+          ),
+        ),
+      );
 };
 
 const neighbors = <N, E>(
@@ -45,28 +157,6 @@ const neighbors = <N, E>(
   direction === "incoming"
     ? Graph.predecessors(graph, nodeIndex)
     : Graph.successors(graph, nodeIndex);
-
-const immediateNeighbors = <N, E>(
-  graph: Graph.Graph<N, E>,
-  center: Graph.NodeIndex,
-): ReadonlyArray<NavigationTarget> => [
-  ...Graph.predecessors(graph, center).map((nodeIndex) => ({
-    nodeIndex,
-    direction: "incoming" as const,
-    path: [nodeIndex],
-  })),
-  { nodeIndex: center, direction: "self", path: [] },
-  ...Graph.successors(graph, center).map((nodeIndex) => ({
-    nodeIndex,
-    direction: "outgoing" as const,
-    path: [nodeIndex],
-  })),
-];
-
-const selfCursor = <N, E>(
-  graph: Graph.Graph<N, E>,
-  center: Graph.NodeIndex,
-): number => Graph.predecessors(graph, center).length;
 
 const isOppositeSideCrossLink = <N, E>(
   graph: Graph.Graph<N, E>,
@@ -90,8 +180,9 @@ const frontier = <N, E>(
   center: Graph.NodeIndex,
   direction: Direction,
   path: ReadonlyArray<Graph.NodeIndex>,
+  radius: number,
 ): ReadonlyArray<NavigationTarget> => {
-  if (path.length === 0) return immediateNeighbors(graph, center);
+  if (path.length === 0) return immediateNeighbors(graph, center, radius);
   if (direction === "self") return [];
 
   const anchor = pipe(
@@ -118,7 +209,13 @@ const selectedNodeIndex = <N, E>(
   state: NeighborhoodExplorerState,
 ): Option.Option<NavigationTarget> =>
   pipe(
-    frontier(options.graph, state.center, state.direction, state.path),
+    frontier(
+      options.graph,
+      state.center,
+      state.direction,
+      state.path,
+      options.radius ?? 3,
+    ),
     Arr.get(state.cursor),
   );
 
@@ -131,6 +228,7 @@ const clampCursor = <N, E>(
     state.center,
     state.direction,
     state.path,
+    options.radius ?? 3,
   );
 
   return {
@@ -141,6 +239,8 @@ const clampCursor = <N, E>(
 
 const stripAnsi = (text: string): string =>
   text.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "gu"), "");
+
+const yellowAnsi = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*33m`, "u");
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
@@ -188,6 +288,26 @@ const nodeLabel = <N, E>(
     Option.getOrElse(() => nodeIndex.toString()),
   );
 
+const breadcrumb = <N, E>(
+  options: NeighborhoodExplorerOptions<N, E>,
+  history: ReadonlyArray<Graph.NodeIndex>,
+  cursor: number,
+) =>
+  Box.punctuateH(
+    Arr.map(history, (index, position) =>
+      Box.text(nodeLabel(options, index)).pipe(
+        Box.annotate(position === cursor ? Ansi.bold : Ansi.dim),
+      ),
+    ),
+    Box.left,
+    Box.text(" ▶ ").pipe(Box.annotate(Ansi.dim)),
+  );
+
+const historyAt = (
+  history: ReadonlyArray<Graph.NodeIndex>,
+  cursor: number,
+): Option.Option<Graph.NodeIndex> => pipe(history, Arr.get(cursor));
+
 const nodeDetails = <N, E>(
   options: NeighborhoodExplorerOptions<N, E>,
   nodeIndex: Graph.NodeIndex,
@@ -214,6 +334,102 @@ const nodeDetails = <N, E>(
     Box.left,
   );
 
+const conceptPanel = <N, E>(
+  options: NeighborhoodExplorerOptions<N, E>,
+  nodeIndex: Graph.NodeIndex,
+  width: number,
+  height: number,
+  label: string,
+  context?: ConceptSummaryCardOptions["context"] | undefined,
+): Box.Box<unknown> => {
+  const summary = pipe(
+    Graph.getNode(options.graph, nodeIndex),
+    Option.flatMap((node) =>
+      options.nodeSummary
+        ? Option.some(options.nodeSummary(node))
+        : Option.none(),
+    ),
+  );
+
+  return pipe(
+    summary,
+    Option.match({
+      onNone: () =>
+        panel(label, width, height, nodeDetails(options, nodeIndex, [])),
+      onSome: (card) =>
+        ConceptSummaryCard({
+          ...card,
+          label,
+          context,
+          incoming: Graph.predecessors(options.graph, nodeIndex).length,
+          outgoing: Graph.successors(options.graph, nodeIndex).length,
+          width,
+          height,
+        }),
+    }),
+  );
+};
+
+const neighborPanel = <N, E>(
+  options: NeighborhoodExplorerOptions<N, E>,
+  center: Graph.NodeIndex,
+  target: NavigationTarget,
+  width: number,
+  height: number,
+): Box.Box<unknown> => {
+  const summary = pipe(
+    Graph.getNode(options.graph, target.nodeIndex),
+    Option.flatMap((node) =>
+      options.nodeSummary
+        ? Option.some(options.nodeSummary(node))
+        : Option.none(),
+    ),
+  );
+  const canExpand =
+    target.direction !== "self" &&
+    canExpandTarget(options.graph, center, target) &&
+    frontier(
+      options.graph,
+      center,
+      target.direction,
+      target.path,
+      options.radius ?? 3,
+    ).length > 0 &&
+    target.path.length + 1 < (options.radius ?? 3);
+  const pathLabels = target.path.map((index) => nodeLabel(options, index));
+  const centerLabel = nodeLabel(options, center);
+
+  return pipe(
+    summary,
+    Option.match({
+      onNone: () =>
+        panel(
+          "Highlighted",
+          width,
+          height,
+          nodeDetails(options, target.nodeIndex, [
+            `direction: ${target.direction}`,
+            `depth: ${target.path.length}`,
+          ]),
+        ),
+      onSome: (card) =>
+        NeighborSummaryCard({
+          title: card.title,
+          reference: card.reference,
+          type: card.type,
+          centerLabel,
+          pathLabels,
+          direction: target.direction,
+          canExpand,
+          incoming: Graph.predecessors(options.graph, target.nodeIndex).length,
+          outgoing: Graph.successors(options.graph, target.nodeIndex).length,
+          width,
+          height,
+        }),
+    }),
+  );
+};
+
 const graphViewport = (
   graph: Box.Box<Ansi.AnsiStyle>,
   selectedLabel: string,
@@ -223,6 +439,11 @@ const graphViewport = (
 ): Box.Box<Ansi.AnsiStyle> => {
   const lines = Box.renderPrettySync(graph).split("\n");
   const plainLines = lines.map(stripAnsi);
+  const highlightedRow = lines.findIndex(
+    (line, index) =>
+      plainLines[index]?.includes(selectedLabel) === true &&
+      yellowAnsi.test(line),
+  );
   const isSelectedLine = (line: string) => {
     if (selectedLabel === "none" || !line.includes(selectedLabel)) return false;
     if (selectedDirection === "self")
@@ -232,8 +453,14 @@ const graphViewport = (
       ? line.includes(`▶ ${selectedLabel}`)
       : !line.includes(`▶ ${selectedLabel}`);
   };
-  const selectedRow = Math.max(0, plainLines.findIndex(isSelectedLine));
+  const selectedRow = Math.max(
+    0,
+    highlightedRow === -1
+      ? plainLines.findIndex(isSelectedLine)
+      : highlightedRow,
+  );
   const bodyHeight = Math.max(1, height);
+
   const maxOffset = Math.max(0, lines.length - bodyHeight);
   const offset = clamp(selectedRow - Math.floor(bodyHeight / 2), 0, maxOffset);
   const visible = lines.slice(offset, offset + bodyHeight);
@@ -243,6 +470,36 @@ const graphViewport = (
     Box.maxHeight(height),
     Box.minHeight(height),
     Box.annotate(Ansi.fgDefault),
+  );
+};
+
+const neighborhoodBody = (
+  graph: Box.Box<Ansi.AnsiStyle>,
+  selectedLabel: string,
+  selectedDirection: Direction | undefined,
+  width: number,
+  height: number,
+): Box.Box<Ansi.AnsiStyle> => {
+  const hint = Box.text(
+    "up/down select · left/right history · enter recenter · esc submit",
+  ).pipe(Box.annotate(Ansi.dim));
+  const hintHeight = 1;
+  const gapHeight = 1;
+  const graphHeight = Math.max(1, height - hintHeight - gapHeight);
+
+  return Box.vsep(
+    [
+      graphViewport(
+        graph,
+        selectedLabel,
+        selectedDirection,
+        width,
+        graphHeight,
+      ),
+      hint,
+    ],
+    1,
+    Box.left,
   );
 };
 
@@ -317,36 +574,17 @@ const renderLayout = <N, E>(
 
     const status = Box.hsep(
       [
-        Box.text("highlight:"),
-        Box.text(selectedLabel).pipe(Box.annotate(Ansi.yellow)),
-        Box.text(`(${state.direction}, depth ${state.path.length + 1})`).pipe(
-          Box.annotate(Ansi.dim),
+        Box.text("history:"),
+        breadcrumb(options, state.history, state.historyCursor).pipe(
+          Box.annotate(Ansi.yellow),
         ),
       ],
       1,
       Box.left,
     );
 
-    const hints = Box.text(
-      "up/down parents/children · left/right level · enter recenter · esc submit",
-    ).pipe(Box.annotate(Ansi.dim));
-
-    const centerNode = nodeDetails(options, state.center, ["current center"]);
-    const highlightedNode = pipe(
-      selected,
-      Option.match({
-        onNone: () =>
-          Box.text("No highlighted node").pipe(Box.annotate(Ansi.dim)),
-        onSome: (target) =>
-          nodeDetails(options, target.nodeIndex, [
-            `direction: ${target.direction}`,
-            `depth: ${target.path.length}`,
-            `path: ${target.path.map((index) => nodeLabel(options, index)).join(" → ")}`,
-          ]),
-      }),
-    );
     const headerHeight = 1;
-    const footerHeight = 2;
+    const footerHeight = 1;
     const panelHeight = Math.max(6, height - headerHeight - footerHeight - 2);
     const sideMinWidth = 24;
     const canShowSides = width >= 90;
@@ -354,11 +592,12 @@ const renderLayout = <N, E>(
       ? Flex.row(
           [
             Flex.fill((panelWidth) =>
-              panel(
-                "Current",
+              conceptPanel(
+                options,
+                state.center,
                 Math.max(sideMinWidth, panelWidth),
                 panelHeight,
-                centerNode,
+                "Current",
               ),
             ),
             Flex.fill(
@@ -367,7 +606,7 @@ const renderLayout = <N, E>(
                   "Neighborhood",
                   panelWidth,
                   panelHeight,
-                  graphViewport(
+                  neighborhoodBody(
                     graph,
                     selectedLabel,
                     selectedDirection,
@@ -378,11 +617,27 @@ const renderLayout = <N, E>(
               2,
             ),
             Flex.fill((panelWidth) =>
-              panel(
-                "Highlighted",
-                Math.max(sideMinWidth, panelWidth),
-                panelHeight,
-                highlightedNode,
+              pipe(
+                selected,
+                Option.match({
+                  onNone: () =>
+                    panel(
+                      "Highlighted",
+                      Math.max(sideMinWidth, panelWidth),
+                      panelHeight,
+                      Box.text("No highlighted node").pipe(
+                        Box.annotate(Ansi.dim),
+                      ),
+                    ),
+                  onSome: (target) =>
+                    neighborPanel(
+                      options,
+                      state.center,
+                      target,
+                      Math.max(sideMinWidth, panelWidth),
+                      panelHeight,
+                    ),
+                }),
               ),
             ),
           ],
@@ -393,7 +648,7 @@ const renderLayout = <N, E>(
           "Neighborhood",
           width,
           panelHeight,
-          graphViewport(
+          neighborhoodBody(
             graph,
             selectedLabel,
             selectedDirection,
@@ -402,7 +657,7 @@ const renderLayout = <N, E>(
           ),
         );
 
-    return Box.vsep([label, row, status, hints], 1, Box.left).pipe(
+    return Box.vsep([label, row, status], 1, Box.left).pipe(
       Box.maxHeight(height),
     );
   });
@@ -412,9 +667,11 @@ export const NeighborhoodExplorer = <N, E>(
 ): Prompt.Prompt<Graph.NodeIndex> => {
   const initialState: NeighborhoodExplorerState = {
     center: options.nodeIndex,
-    direction: "outgoing",
+    direction: "self",
     path: [],
-    cursor: selfCursor(options.graph, options.nodeIndex),
+    cursor: 0,
+    history: [options.nodeIndex],
+    historyCursor: 0,
   };
 
   let hasRendered = false;
@@ -456,12 +713,12 @@ export const NeighborhoodExplorer = <N, E>(
         );
       }),
       process: Effect.fnUntraced(function* (input, state) {
-        const maxDepth = options.radius ?? 3;
         const currentFrontier = frontier(
           options.graph,
           state.center,
           state.direction,
           state.path,
+          options.radius ?? 3,
         );
         const next = (state: NeighborhoodExplorerState) =>
           Action.NextFrame({ state: clampCursor(options, state) });
@@ -490,49 +747,67 @@ export const NeighborhoodExplorer = <N, E>(
                 }),
           ),
           Match.when({ key: { name: "left" } }, () =>
-            next({
-              ...state,
-              path: state.path.slice(0, -1),
-              cursor: 0,
-            }),
+            state.historyCursor <= 0
+              ? Action.Beep()
+              : pipe(
+                  historyAt(state.history, state.historyCursor - 1),
+                  Option.match({
+                    onNone: () => Action.Beep(),
+                    onSome: (center) =>
+                      next({
+                        ...state,
+                        center,
+                        direction: "self",
+                        path: [],
+                        cursor: 0,
+                        historyCursor: state.historyCursor - 1,
+                      }),
+                  }),
+                ),
           ),
           Match.when({ key: { name: "right" } }, () =>
-            pipe(
-              Arr.get(currentFrontier, state.cursor),
-              Option.match({
-                onNone: () => Action.Beep(),
-                onSome: (selected) =>
-                  depth >= maxDepth ||
-                  selected.direction === "self" ||
-                  !canExpandTarget(options.graph, state.center, selected) ||
-                  frontier(
-                    options.graph,
-                    state.center,
-                    selected.direction,
-                    selected.path,
-                  ).length === 0
-                    ? Action.Beep()
-                    : next({
+            state.historyCursor >= state.history.length - 1
+              ? Action.Beep()
+              : pipe(
+                  historyAt(state.history, state.historyCursor + 1),
+                  Option.match({
+                    onNone: () => Action.Beep(),
+                    onSome: (center) =>
+                      next({
                         ...state,
-                        direction: selected.direction,
-                        path: selected.path,
+                        center,
+                        direction: "self",
+                        path: [],
                         cursor: 0,
+                        historyCursor: state.historyCursor + 1,
                       }),
-              }),
-            ),
+                  }),
+                ),
           ),
           Match.when({ key: { name: "return" } }, () =>
             pipe(
               Arr.get(currentFrontier, state.cursor),
               Option.match({
                 onNone: () => Action.Beep(),
-                onSome: (target) =>
-                  next({
+                onSome: (target) => {
+                  const historyPrefix = state.history.slice(
+                    0,
+                    state.historyCursor + 1,
+                  );
+                  const history =
+                    target.path.length === 0
+                      ? historyPrefix
+                      : [...historyPrefix, ...target.path];
+
+                  return next({
                     center: target.nodeIndex,
-                    direction: "outgoing",
+                    direction: "self",
                     path: [],
-                    cursor: selfCursor(options.graph, target.nodeIndex),
-                  }),
+                    cursor: 0,
+                    history,
+                    historyCursor: history.length - 1,
+                  });
+                },
               }),
             ),
           ),
