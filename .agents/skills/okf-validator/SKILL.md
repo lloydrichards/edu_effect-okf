@@ -102,6 +102,23 @@ Links between concepts should be valid:
 - Number of broken links
 - Number of orphan concepts (no links to or from)
 
+### 7. Graph Usefulness (Warning/Info)
+
+Spec-valid OKF can still be poor for retrieval if the graph is too dense. Check whether concept links create useful local neighborhoods or whether generic hubs pull in most of the bundle.
+
+Watch for:
+- Concept pages with very high outgoing or incoming link counts
+- Broad concepts such as `watering`, `light`, `diagnosis`, `safety`, or `sources` linking across many categories
+- Dense reciprocal links where A links to B and B links back only because they are generally related
+- Query neighborhoods that include most concepts in the bundle
+- Source/reference pages acting as internal graph hubs
+
+Prefer this shape:
+- `index.md` carries broad navigation links
+- Generic overview concepts define scope with few graph edges
+- Focused concepts carry causal, diagnostic, workflow, or dependency links
+- Plant/domain profiles link to focused issue pages rather than generic care hubs
+
 ## Validation Procedure
 
 ### 1. Discover the Bundle
@@ -162,6 +179,27 @@ Calculate and report:
 - Directories missing `index.md`
 - Coverage percentage: `(validDescriptions / totalConcepts) * 100`
 
+### 7. Check Graph Density
+
+Use the CLI graph command after spec validation:
+
+```bash
+bun run src/index.ts -- graph --json <bundle-path>
+```
+
+Inspect:
+- Total nodes and edges
+- Nodes with unusually many incoming or outgoing links
+- Whether generic concepts dominate edge lists
+
+Then test at least one realistic query if the bundle is intended for retrieval:
+
+```bash
+bun run src/index.ts query <bundle-path> "realistic user question"
+```
+
+If the query subgraph approaches the full graph, report this as a graph design warning. Suggest splitting broad concepts into focused concepts and moving broad navigation links to `index.md`.
+
 ## Issue Severity Levels
 
 **Critical (Must Fix):**
@@ -177,12 +215,15 @@ Calculate and report:
 - Inconsistent type names
 - Directory without index (3+ concepts)
 - Description duplicates title
+- Over-connected concept hubs that make local graph neighborhoods too broad
+- Broad navigation links embedded in concept files instead of `index.md`
 
 **Info (Nice to Have):**
 - Low coverage metrics
 - Orphan concepts (isolated, no links)
 - Single-use types (potential typos)
 - Non-standard frontmatter fields (allowed, but note them)
+- Candidate concept splits for pages with many unrelated outgoing links
 
 ## Validation Output Format
 
@@ -253,6 +294,12 @@ bun run src/index.ts -- validate --json <bundle-path>
 
 # View bundle graph (confirms cross-links work)
 bun run src/index.ts -- graph <bundle-path>
+
+# JSON graph output for edge-count inspection
+bun run src/index.ts -- graph --json <bundle-path>
+
+# Query-time neighborhood sanity check
+bun run src/index.ts query <bundle-path> "example domain question"
 
 # View a specific concept
 bun run src/index.ts -- concept <bundle-path> <concept-id>
