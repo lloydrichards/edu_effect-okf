@@ -3,7 +3,7 @@ import { Console, Effect, Terminal } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
-import { ConceptCard } from "../ui/ConceptCard";
+import { ConceptCard } from "../component/ui/ConceptCard";
 
 export const concept = Command.make(
   "concept",

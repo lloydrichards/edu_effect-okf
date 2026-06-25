@@ -6,9 +6,9 @@ import { EmbeddingModel } from "effect/unstable/ai";
 import { Command } from "effect/unstable/cli";
 import { Box, Flex } from "effect-boxes";
 import { bundlePath, query } from "../args";
+import { NeighborhoodGraph } from "../component/ui/NeighborhoodGraph";
 import { json } from "../flags";
 import { compose, neighborhood } from "../lib/graph-utils";
-import { NeighborhoodGraph } from "../ui/NeighborhoodGraph";
 
 export const queryCommand = Command.make(
   "query",
