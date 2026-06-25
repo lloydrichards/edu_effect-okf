@@ -21,7 +21,7 @@
     "@repo/okf": "workspace:*",
     "@repo/domain": "workspace:*",
     "effect": "4.0.0-beta.84",
-    "effect-boxes": "^0.16.1"
+    "effect-boxes": "^0.17.0"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.84",
