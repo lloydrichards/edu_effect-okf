@@ -61,6 +61,41 @@ Always include these for a high-quality bundle (the CLI validates without them b
 - **index.md** - Directory listing for progressive disclosure
 - **log.md** - Chronological update history (optional)
 
+## Graph Modeling Principles
+
+OKF links are not just documentation conveniences: local tools turn markdown links into graph edges. If concepts are too broad or heavily cross-linked, a query neighborhood can expand into most of the bundle and become useless for retrieval.
+
+Use this mental model:
+- `index.md` files are for navigation breadth and can link widely.
+- Concept files are for focused information and should link selectively.
+- Broad category concepts should define scope, not route to every related concept.
+- Focused concepts should carry diagnostic, causal, dependency, or workflow edges.
+- Prefer one-way semantic links unless the reverse relationship is genuinely useful.
+
+### When to Split a Concept
+
+Split a concept when it naturally needs many unrelated outgoing links or acts as an umbrella for multiple tasks, symptoms, or causes.
+
+Good splits:
+- `watering.md` overview plus `soil-moisture-check.md`, `dry-down.md`, `watering-demand.md`
+- `light-intensity.md` overview plus `insufficient-light.md`, `light-acclimation.md`, `bright-indirect-light.md`
+- `yellowing-leaves.md` overview plus `yellow-leaves-overwatering.md`, `yellow-leaves-low-light.md`, `yellow-leaves-pests.md`
+
+Rule of thumb: if a concept wants to link to 10+ internal concepts, it is probably an index/navigation page or should be split into narrower concepts.
+
+### Link Direction Guidelines
+
+Use links to express useful graph traversal, not every possible association:
+- Specific symptom → focused cause or diagnostic route
+- Plant profile → distinctive plant-specific issue, propagation method, or safety issue
+- Focused issue → check/remedy concepts
+- Workflow step → the focused concept needed for that step
+
+Avoid dense reciprocal links:
+- Do not make `watering.md` link to every plant and every water-related symptom.
+- Do not make every plant link to generic hubs like `watering`, `light`, `humidity`, and `pet toxicity` unless those edges are genuinely useful for retrieval.
+- Do not use source/reference pages as graph hubs; keep source lists mostly external URLs.
+
 ## Building Procedure
 
 ### 1. Discover Source Content
@@ -183,8 +218,16 @@ See the [related concept](../category/concept.md) for more.
 - Parent/child relationships (document → section)
 - Dependencies (guide references API docs)
 - Related concepts (alternative approaches, comparisons)
+- Focused diagnostic routes (symptom → likely cause → check/remedy)
+- Plant-specific or domain-specific issues (plant profile → focused problem page)
 
 **Broken links are tolerated** - link to not-yet-written concepts when appropriate.
+
+**When NOT to cross-link:**
+- When the link is only a broad category association already covered by `index.md`
+- When the target is a generic hub that many unrelated pages already link to
+- When the reverse link would only make the graph symmetrical, not more informative
+- When a plain-text mention preserves readability without adding a noisy graph edge
 
 ### 6. Create Index Files
 
@@ -211,6 +254,7 @@ Brief description of what this directory contains.
 - Group related concepts under section headings
 - Use relative links
 - Include one-line descriptions (can match the concept's description)
+- Carry broad navigation that would be too noisy inside concept files
 
 Start with the root `index.md` and create nested indexes for subdirectories.
 
@@ -233,7 +277,7 @@ tags: [<tag1>, <tag2>, <tag3>]
 - Preserve existing markdown structure when converting
 - Use standard markdown (headings, lists, tables, code blocks)
 - No required sections - structure naturally for the content
-- Include cross-links to related concepts
+- Include selective cross-links to focused concepts; use plain text for broad category mentions that should not become graph edges
 
 **Filename conventions:**
 - Lowercase with hyphens: `user-authentication.md`
@@ -278,6 +322,13 @@ Run **okf-validator** when done to catch any issues.
 - Create index files for directories with 3+ concepts
 - Group related concepts in the same directory
 - Use descriptive filenames that match titles
+
+**Optimize for graph usefulness:**
+- Keep concept pages information-focused and low-to-moderate degree
+- Move broad lists of related concepts into `index.md`
+- Introduce focused intermediate concepts instead of linking everything to generic hubs
+- After building, run `graph --json` and inspect node/edge counts plus query neighborhoods
+- If a radius-1 or radius-2 neighborhood returns most of the bundle, split hub concepts and remove broad reciprocal links
 
 **Stay surgical:**
 - When converting existing markdown, only add frontmatter

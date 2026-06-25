@@ -10,6 +10,8 @@ import { NeighborhoodGraph } from "../component/ui/NeighborhoodGraph";
 import { json } from "../flags";
 import { compose, neighborhood } from "../lib/graph-utils";
 
+const queryNeighborhoodRadius = 2;
+
 export const queryCommand = Command.make(
   "query",
   { bundlePath, query, json },
@@ -45,7 +47,7 @@ export const queryCommand = Command.make(
       // Build subgraph by composing neighborhoods of each seed
       const subgraph = Array.reduce(
         Array.map(seeds, (seed) =>
-          neighborhood(graph.graph, seed, { radius: 2 }),
+          neighborhood(graph.graph, seed, { radius: queryNeighborhoodRadius }),
         ),
         Graph.directed<ConceptNode, ConceptEdge>(),
         (acc, g) => compose(acc, g, (n) => n.id),
@@ -136,7 +138,7 @@ export const queryCommand = Command.make(
                 NeighborhoodGraph({
                   graph: graph.graph,
                   nodeIndex,
-                  radius: 3,
+                  radius: queryNeighborhoodRadius,
                   direction: "both",
                   nodeLabel: (node) => truncateLabel(node.id),
                 }),
