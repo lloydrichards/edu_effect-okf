@@ -1,5 +1,14 @@
 import { OkfService } from "@repo/okf";
-import { Console, Effect, Terminal } from "effect";
+import {
+  Array as Arr,
+  Console,
+  Effect,
+  Graph,
+  Option,
+  pipe,
+  Terminal,
+} from "effect";
+
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
@@ -35,6 +44,14 @@ export const concept = Command.make(
           nodeIndex: nodeIndex || 0,
           radius: 2,
           nodeLabel: (node) => node.title || "",
+          nodeSummary: (node) => ({
+            title: node.title ?? node.id,
+            reference: node.path,
+            type: node.type,
+            description: node.description,
+            tags: node.tags,
+            resource: node.resource,
+          }),
         });
 
         selectedConcept = pipe(
