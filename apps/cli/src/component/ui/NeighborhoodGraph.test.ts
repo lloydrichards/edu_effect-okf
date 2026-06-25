@@ -115,6 +115,7 @@ describe("NeighborhoodGraph", () => {
          |  ╭─── parentA
          |  ├─── parentB
          |  │ ╭─── grandparentA
+         |  │ ├─── childB
          |  ├─┴─ parentC
          |╭─┴──────╮
          |│ select │
@@ -194,6 +195,7 @@ describe("NeighborhoodGraph", () => {
          |  ╭─── parentA
          |  ├─── parentB
          |  │ ╭─── grandparentA
+         |  │ ├─── childB
          |  ├─┴─ parentC
          |╭─┴──────╮
          |│ select │
@@ -223,6 +225,45 @@ describe("NeighborhoodGraph", () => {
       expected(
         String.stripMargin(`
          |    ╭─── grandparent
+         |  ╭─┴─ parent
+         |╭─┴──────╮
+         |│ select │
+         |╰────────╯
+         `),
+      ),
+    );
+  });
+
+  it("renders multiple grandparents as joined incoming siblings", () => {
+    const { graph, nodeIndex } = makeGraph(
+      [
+        node("select"),
+        node("parent"),
+        node("grandparentA"),
+        node("grandparentB"),
+        node("grandparentC"),
+      ],
+      [
+        ["parent", "select"],
+        ["grandparentA", "parent"],
+        ["grandparentB", "parent"],
+        ["grandparentC", "parent"],
+      ],
+    );
+
+    expect(
+      render({
+        graph,
+        nodeIndex: getIndex(nodeIndex, "select"),
+        radius: 2,
+        direction: "incoming",
+      }),
+    ).toBe(
+      expected(
+        String.stripMargin(`
+         |    ╭─── grandparentA
+         |    ├─── grandparentB
+         |    ├─── grandparentC
          |  ╭─┴─ parent
          |╭─┴──────╮
          |│ select │
@@ -318,6 +359,43 @@ describe("NeighborhoodGraph", () => {
          |  ╰─┬─▶ child
          |    ╰─┬─▶ grandchild
          |      ╰──▶ child ⟳
+         `),
+      ),
+    );
+  });
+
+  it("keeps a highlighted outgoing path visible when its first node is also incoming", () => {
+    const { graph, nodeIndex } = makeGraph(
+      [node("select"), node("shared"), node("target")],
+      [
+        ["shared", "select"],
+        ["select", "shared"],
+        ["shared", "target"],
+      ],
+    );
+
+    expect(
+      render({
+        graph,
+        nodeIndex: getIndex(nodeIndex, "select"),
+        highlightedNodeIndex: getIndex(nodeIndex, "target"),
+        highlightedPath: [
+          getIndex(nodeIndex, "shared"),
+          getIndex(nodeIndex, "target"),
+        ],
+        highlightedDirection: "outgoing",
+        radius: 2,
+        direction: "both",
+      }),
+    ).toBe(
+      expected(
+        String.stripMargin(`
+         |  ╭─── shared
+         |╭─┴──────╮
+         |│ select │
+         |╰─┬──────╯
+         |  ╰─┬─▶ shared
+         |    ╰──▶ target
          `),
       ),
     );

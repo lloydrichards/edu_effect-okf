@@ -3,7 +3,7 @@ import { Console, Effect, Terminal } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath } from "../args";
-import { MarkdownBox } from "../ui/Markdown";
+import { MarkdownBox } from "../component/ui/Markdown";
 
 export const index = Command.make("index", { bundlePath }, ({ bundlePath }) =>
   Effect.gen(function* () {

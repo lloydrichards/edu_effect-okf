@@ -3,8 +3,8 @@ import { Array, Console, Effect, Graph, Match, Option, pipe } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box, Flex } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
+import { NeighborhoodGraph } from "../component/ui/NeighborhoodGraph";
 import { json } from "../flags";
-import { NeighborhoodGraph } from "../ui/NeighborhoodGraph";
 
 type DisplayNode = {
   readonly id: string;

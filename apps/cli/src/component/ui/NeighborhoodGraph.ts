@@ -2,10 +2,16 @@ import { Array, Graph, Match, Option, pipe } from "effect";
 import { Ansi, Box } from "effect-boxes";
 
 export type NeighborhoodGraphDirection = "incoming" | "outgoing" | "both";
+export type NeighborhoodGraphHighlightDirection = "incoming" | "outgoing";
 
 export type NeighborhoodGraphOptions<N, E> = {
   readonly graph: Graph.Graph<N, E>;
   readonly nodeIndex: Graph.NodeIndex;
+  readonly highlightedNodeIndex?: Graph.NodeIndex | undefined;
+  readonly highlightedPath?: ReadonlyArray<Graph.NodeIndex> | undefined;
+  readonly highlightedDirection?:
+    | NeighborhoodGraphHighlightDirection
+    | undefined;
   readonly radius: number;
   readonly direction: NeighborhoodGraphDirection;
   readonly nodeLabel: (node: N) => string;
@@ -19,6 +25,12 @@ type Branch = {
 };
 
 type Repeat = "Cycle" | "CrossLink";
+
+type Highlight = {
+  readonly nodeIndex: Graph.NodeIndex | undefined;
+  readonly path: ReadonlyArray<Graph.NodeIndex> | undefined;
+  readonly direction: NeighborhoodGraphHighlightDirection | undefined;
+};
 
 type BuildContext = {
   readonly root: Graph.NodeIndex;
@@ -73,9 +85,14 @@ const buildBranches = <N, E>(
 const walkBranches = (
   branches: ReadonlyArray<Branch>,
   seen = new Set<Graph.NodeIndex>(),
+  highlightedPath: ReadonlyArray<Graph.NodeIndex> | undefined = undefined,
+  path: ReadonlyArray<Graph.NodeIndex> = [],
 ): ReadonlyArray<Branch> =>
   branches.map((branch) => {
-    if (seen.has(branch.index)) {
+    const branchPath = [...path, branch.index];
+    const isHighlightedPath = isPathPrefix(branchPath, highlightedPath);
+
+    if (seen.has(branch.index) && !isHighlightedPath) {
       return { ...branch, repeat: branch.repeat ?? "CrossLink", children: [] };
     }
 
@@ -83,11 +100,34 @@ const walkBranches = (
     return {
       ...branch,
       children:
-        branch.repeat !== undefined ? [] : walkBranches(branch.children, seen),
+        branch.repeat !== undefined
+          ? []
+          : walkBranches(branch.children, seen, highlightedPath, branchPath),
     };
   });
 
-const LabelBox = (branch: Branch) =>
+const isPathPrefix = (
+  prefix: ReadonlyArray<Graph.NodeIndex>,
+  path: ReadonlyArray<Graph.NodeIndex> | undefined,
+): boolean =>
+  path !== undefined &&
+  prefix.length <= path.length &&
+  prefix.every((nodeIndex, index) => nodeIndex === path[index]);
+
+const isSamePath = (
+  left: ReadonlyArray<Graph.NodeIndex>,
+  right: ReadonlyArray<Graph.NodeIndex> | undefined,
+): boolean =>
+  right !== undefined &&
+  left.length === right.length &&
+  left.every((nodeIndex, index) => nodeIndex === right[index]);
+
+const LabelBox = (
+  branch: Branch,
+  highlight: Highlight,
+  path: ReadonlyArray<Graph.NodeIndex>,
+  direction: NeighborhoodGraphHighlightDirection,
+) =>
   Box.hcat(
     [
       Box.text(branch.label),
@@ -98,12 +138,24 @@ const LabelBox = (branch: Branch) =>
       ),
     ],
     Box.top,
-  ).pipe(Box.annotate(branch.repeat !== undefined ? Ansi.dim : Ansi.fgDefault));
+  ).pipe(
+    Box.annotate(
+      isSamePath(path, highlight.path) && direction === highlight.direction
+        ? Ansi.combine(Ansi.yellow, Ansi.bold)
+        : branch.index === highlight.nodeIndex
+          ? Ansi.cyan
+        : branch.repeat !== undefined
+          ? Ansi.dim
+          : Ansi.fgDefault,
+    ),
+  );
 
 const DownBranchBox = (
   branch: Branch,
   prefix: Box.Box,
   isLast: boolean,
+  highlight: Highlight,
+  path: ReadonlyArray<Graph.NodeIndex>,
 ): Box.Box =>
   Box.vcat(
     [
@@ -112,7 +164,7 @@ const DownBranchBox = (
           prefix,
           Box.text(isLast ? "╰" : "├"),
           Box.text(branch.children.length > 0 ? "─┬─▶ " : "──▶ "),
-          LabelBox(branch),
+          LabelBox(branch, highlight, path, "outgoing"),
         ],
         Box.top,
       ),
@@ -121,38 +173,57 @@ const DownBranchBox = (
           child,
           Box.hcat([prefix, Box.text(isLast ? "  " : "│ ")], Box.top),
           index === branch.children.length - 1,
+          highlight,
+          [...path, child.index],
         ),
       ),
     ],
     Box.left,
   );
 
-const UpRootBox = (branch: Branch, isFirst: boolean) => {
+const UpRootBox = (
+  branch: Branch,
+  isFirst: boolean,
+  highlight: Highlight,
+) => {
+  const path = [branch.index];
+
   if (branch.children.length === 0) {
     return Box.hcat(
       [
         Box.text("  "),
         Box.text(isFirst ? "╭" : "├"),
         Box.text("─── "),
-        LabelBox(branch),
+        LabelBox(branch, highlight, path, "incoming"),
       ],
       Box.top,
     );
   }
 
-  const child = branch.children[0];
-
   return Box.vcat(
     [
-      Box.hcat(
-        [
-          Box.text(isFirst ? "    ╭─── " : "  │ ╭─── "),
-          ...(child ? [LabelBox(child)] : []),
-        ],
-        Box.top,
+      ...branch.children.map((child, index) =>
+        Box.hcat(
+          [
+            Box.text(
+              isFirst
+                ? index === 0
+                  ? "    ╭─── "
+                  : "    ├─── "
+                : index === 0
+                  ? "  │ ╭─── "
+                  : "  │ ├─── ",
+            ),
+            LabelBox(child, highlight, [...path, child.index], "incoming"),
+          ],
+          Box.top,
+        ),
       ),
       Box.hcat(
-        [Box.text(isFirst ? "  ╭─┴─ " : "  ├─┴─ "), LabelBox(branch)],
+        [
+          Box.text(isFirst ? "  ╭─┴─ " : "  ├─┴─ "),
+          LabelBox(branch, highlight, path, "incoming"),
+        ],
         Box.top,
       ),
     ],
@@ -164,19 +235,25 @@ const selectedBox = (
   label: string,
   hasIncoming: boolean,
   hasOutgoing: boolean,
-): ReadonlyArray<Box.Box<never>> => {
+  isHighlighted: boolean,
+): ReadonlyArray<Box.Box<Ansi.AnsiStyle>> => {
   const right = "─".repeat(label.length);
+  const annotate = isHighlighted
+    ? Box.annotate(Ansi.combine(Ansi.yellow, Ansi.bold))
+    : Box.annotate(Ansi.fgDefault);
 
   return [
     Box.hcat(
       [Box.text(hasIncoming ? "╭─┴" : "╭──"), Box.text(right), Box.text("╮")],
       Box.top,
+    ).pipe(annotate),
+    Box.hcat([Box.text("│ "), Box.text(label), Box.text(" │")], Box.top).pipe(
+      annotate,
     ),
-    Box.hcat([Box.text("│ "), Box.text(label), Box.text(" │")], Box.top),
     Box.hcat(
       [Box.text(hasOutgoing ? "╰─┬" : "╰──"), Box.text(right), Box.text("╯")],
       Box.top,
-    ),
+    ).pipe(annotate),
   ];
 };
 
@@ -215,21 +292,36 @@ export const NeighborhoodGraph = <N, E>(
         return acc;
       }, new Set<Graph.NodeIndex>()),
     ]),
+    options.highlightedDirection === "outgoing"
+      ? options.highlightedPath
+      : undefined,
   );
+
+  const highlight: Highlight = {
+    nodeIndex: options.highlightedNodeIndex,
+    path: options.highlightedPath,
+    direction: options.highlightedDirection,
+  };
 
   return Box.vcat(
     [
-      ...normIncoming.map((branch, index) => UpRootBox(branch, index === 0)),
+      ...normIncoming.map((branch, index) =>
+        UpRootBox(branch, index === 0, highlight),
+      ),
       ...selectedBox(
         options.nodeLabel(selected.value),
         incoming.length > 0,
         outgoing.length > 0,
+        options.highlightedNodeIndex === options.nodeIndex &&
+          options.highlightedPath?.length === 0,
       ),
       ...normOutgoing.map((branch, index) =>
         DownBranchBox(
           branch,
           Box.text("  "),
           index === normOutgoing.length - 1,
+          highlight,
+          [branch.index],
         ),
       ),
     ],
