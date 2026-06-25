@@ -5,5 +5,12 @@ export const json = Flag.boolean("json").pipe(
 );
 
 export const reset = Flag.boolean("reset").pipe(
-  Flag.withDescription("Delete and recreate the target collection before ingesting"),
+  Flag.withDescription(
+    "Delete and recreate the target collection before ingesting",
+  ),
+);
+
+export const interactive = Flag.boolean("interactive").pipe(
+  Flag.withAlias("i"),
+  Flag.withDescription("Enable interactive mode"),
 );

@@ -3,12 +3,14 @@ import { Console, Effect, Terminal } from "effect";
 import { Command } from "effect/unstable/cli";
 import { Box } from "effect-boxes";
 import { bundlePath, conceptId } from "../args";
+import { NeighborhoodExplorer } from "../component/NeighborhoodExplorer";
 import { ConceptCard } from "../component/ui/ConceptCard";
+import { interactive } from "../flags";
 
 export const concept = Command.make(
   "concept",
-  { bundlePath, conceptId },
-  ({ bundlePath, conceptId }) =>
+  { bundlePath, conceptId, interactive },
+  ({ bundlePath, conceptId, interactive }) =>
     Effect.gen(function* () {
       const okf = yield* OkfService;
       const terminal = yield* Terminal.Terminal;
@@ -17,12 +19,36 @@ export const concept = Command.make(
 
       const { bundle, graph } = yield* okf.make(bundlePath);
 
-      const concept = bundle.concepts.find((c) => c.id === conceptId);
-      if (!concept) {
+      const concept = pipe(
+        bundle.concepts,
+        Arr.findFirst((c) => c.id === conceptId),
+      );
+      if (Option.isNone(concept)) {
         yield* Console.log(`Concept not found: ${conceptId}`);
         return;
       }
-      const card = yield* ConceptCard(concept, graph, width);
+      let selectedConcept = concept.value;
+      if (interactive) {
+        const nodeIndex = graph.nodeIndex.get(selectedConcept.id);
+        const selectedNodeIndex = yield* NeighborhoodExplorer({
+          graph: graph.graph,
+          nodeIndex: nodeIndex || 0,
+          radius: 2,
+          nodeLabel: (node) => node.title || "",
+        });
+
+        selectedConcept = pipe(
+          Graph.getNode(graph.graph, selectedNodeIndex),
+          Option.flatMap((node) =>
+            pipe(
+              bundle.concepts,
+              Arr.findFirst((concept) => concept.id === node.id),
+            ),
+          ),
+          Option.getOrElse(() => selectedConcept),
+        );
+      }
+      const card = yield* ConceptCard(selectedConcept, graph, width);
 
       yield* Console.log(yield* Box.renderPretty(card));
     }),
