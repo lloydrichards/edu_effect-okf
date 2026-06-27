@@ -55,7 +55,7 @@ export const queryCommand = Command.make(
 
       const mermaid = Graph.toMermaid(subgraph, {
         nodeLabel: (node) => node.id,
-        edgeLabel: (edge) => edge.relation ?? edge.label ?? edge.kind,
+        edgeLabel: (edge) => edge.relation ?? edge.label ?? "",
       });
 
       // Build index map: nodeIndex -> node id (for resolving edge endpoints)

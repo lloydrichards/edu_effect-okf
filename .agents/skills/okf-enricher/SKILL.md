@@ -82,6 +82,7 @@ Base every claim on evidence in the document. Read the concept file and ground y
 **Cross-links in body:**
 - Links to other concepts reveal relationships
 - Section headings near links indicate relationship type
+- Markdown link titles encode explicit graph relations when present
 
 **Frontmatter context:**
 - `type` tells you the concept category
@@ -141,6 +142,7 @@ If concepts are clearly related but not yet linked:
 - Use bundle-relative paths: `/path/to/concept.md`
 - Add links naturally in prose (not as a bare list)
 - Place in context where the relationship is relevant
+- Add a markdown link title when the relationship type is clear
 
 **Example:**
 ```markdown
@@ -148,10 +150,28 @@ This authentication flow uses the [JWT Token Format](/references/jwt-format.md)
 and integrates with the [User Service](/services/user-service.md).
 ```
 
+**Semantic relationship example:**
+```markdown
+This diagnostic route [depends on](/care/soil-moisture-check.md "depends on")
+the soil moisture check before recommending a watering change.
+```
+
+The title string becomes graph edge `relation` metadata. The relation should
+read from the current concept to the linked concept:
+
+```text
+current concept --relation--> linked concept
+```
+
+Prefer concise phrases such as `child of`, `part of`, `requires`, `depends on`,
+`caused by`, `diagnosed by`, `treated by`, `prevents`, `symptom of`,
+`example of`, and `contrasts with`.
+
 **Do NOT:**
 - Add links to non-existent concepts (broken links)
 - Add redundant links (already present)
 - Create a "Related" section with bare links (prefer inline)
+- Invent link-title relations when the content only supports a loose mention
 
 ### 6. Suggest Tags (Optional)
 
