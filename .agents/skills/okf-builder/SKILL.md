@@ -91,6 +91,49 @@ Use links to express useful graph traversal, not every possible association:
 - Focused issue → check/remedy concepts
 - Workflow step → the focused concept needed for that step
 
+### Edge Relation Metadata
+
+When the relationship type is known, encode it in the markdown link title:
+
+```markdown
+[visible link text](/path/to/concept.md "relation phrase")
+```
+
+Local graph tooling treats the link title as edge `relation` metadata. The
+visible link text remains the human-facing label, while the title phrase tells
+the knowledge graph what the edge means.
+
+Good examples:
+```markdown
+[Root Rot](/problems/root-rot.md "caused by")
+[Soil Moisture Check](/care/soil-moisture-check.md "diagnosed by")
+[Propagation](/propagation/index.md "child of")
+[Bright Indirect Light](/care/bright-indirect-light.md "requires")
+```
+
+Use short, natural relation phrases that read as:
+
+```text
+source concept --relation--> target concept
+```
+
+Prefer relation phrases such as:
+- `child of`
+- `part of`
+- `requires`
+- `depends on`
+- `caused by`
+- `diagnosed by`
+- `treated by`
+- `prevents`
+- `symptom of`
+- `example of`
+- `contrasts with`
+
+Do not add a title when the relationship is only a loose mention. Avoid using
+the same generic relation everywhere; if the precise relationship is unclear,
+leave the link untitled rather than inventing semantics.
+
 Avoid dense reciprocal links:
 - Do not make `watering.md` link to every plant and every water-related symptom.
 - Do not make every plant link to generic hubs like `watering`, `light`, `humidity`, and `pet toxicity` unless those edges are genuinely useful for retrieval.
@@ -213,6 +256,15 @@ See the [Authentication Guide](/guides/authentication.md) for details.
 ```markdown
 See the [related concept](../category/concept.md) for more.
 ```
+
+**Semantic links with graph relation metadata:**
+```markdown
+This workflow [depends on](/references/api-contract.md "depends on") the API contract.
+```
+
+Use titled links whenever the edge relation is clear and useful for graph
+traversal. The title should describe the relationship from the current concept
+to the target concept.
 
 **When to cross-link:**
 - Parent/child relationships (document → section)
