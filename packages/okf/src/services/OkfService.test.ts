@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, FileSystem, Layer } from "effect";
+import { Effect, FileSystem, Graph, Layer } from "effect";
 import { MarkdownService } from "./MarkdownService";
 import { BundleInvalid, OkfService } from "./OkfService";
 
@@ -63,6 +63,37 @@ describe("OkfService", () => {
           severity: "warning",
         },
       ]);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("uses markdown link titles as graph edge relations", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const okf = yield* OkfService;
+      const dir = yield* fs.makeTempDirectoryScoped({
+        prefix: "okf-edge-relation-",
+      });
+
+      yield* fs.writeFileString(
+        `${dir}/parent.md`,
+        `---\ntype: Note\ntitle: Parent\n---\n\nParent concept.\n`,
+      );
+      yield* fs.writeFileString(
+        `${dir}/child.md`,
+        `---\ntype: Note\ntitle: Child\n---\n\nI am a [link](/parent.md "child of") that can be parsed.\n`,
+      );
+
+      const result = yield* okf.make(dir);
+      const edges = Array.from(Graph.edges(result.graph.graph));
+
+      expect(edges).toHaveLength(1);
+      expect(edges[0]?.[1].data).toEqual({
+        kind: "concept-link",
+        sourceId: "child",
+        targetId: "parent",
+        label: "link",
+        relation: "child of",
+      });
     }).pipe(Effect.provide(TestLayer)),
   );
 });

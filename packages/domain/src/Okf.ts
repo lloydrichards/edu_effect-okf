@@ -5,13 +5,16 @@ export const ConceptLink = Schema.TaggedUnion({
   internal: {
     target: Schema.String,
     label: Schema.String,
+    relation: Schema.optional(Schema.String),
   },
   external: {
     target: Schema.String,
     label: Schema.String,
+    relation: Schema.optional(Schema.String),
   },
   broken: {
     target: Schema.String,
+    relation: Schema.optional(Schema.String),
   },
 });
 
@@ -120,6 +123,7 @@ export const ConceptEdge = Schema.Struct({
   sourceId: Schema.String,
   targetId: Schema.String,
   label: Schema.optional(Schema.String),
+  relation: Schema.optional(Schema.String),
 });
 
 export type ConceptEdge = typeof ConceptEdge.Type;
@@ -128,6 +132,7 @@ export const UnresolvedLink = Schema.Struct({
   sourceId: Schema.String,
   targetId: Schema.String,
   label: Schema.optional(Schema.String),
+  relation: Schema.optional(Schema.String),
 });
 
 export type UnresolvedLink = typeof UnresolvedLink.Type;

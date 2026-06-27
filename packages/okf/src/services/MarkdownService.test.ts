@@ -86,4 +86,21 @@ const x = 1
         });
       }).pipe(Effect.provide(MarkdownService.layer)),
   );
+
+  it.effect("extracts markdown link titles as raw link metadata", () =>
+    Effect.gen(function* () {
+      const markdown = yield* MarkdownService;
+      const parsed = yield* markdown.parse(
+        `I am a [link](/otherConcept "child of") that can be parsed`,
+      );
+
+      expect(parsed.links).toEqual([
+        {
+          label: "link",
+          target: "/otherConcept",
+          title: "child of",
+        },
+      ]);
+    }).pipe(Effect.provide(MarkdownService.layer)),
+  );
 });

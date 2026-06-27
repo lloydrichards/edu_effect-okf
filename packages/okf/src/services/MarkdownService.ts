@@ -33,6 +33,7 @@ export class MarkdownParseError extends Data.TaggedError("MarkdownParseError")<{
 export interface RawLink {
   readonly label: string;
   readonly target: string;
+  readonly title?: string | undefined;
 }
 
 export interface ParsedMarkdown {
@@ -152,7 +153,13 @@ const collectLinks = (
   Arr.flatMap(nodes, (node): ReadonlyArray<RawLink> => {
     const self: ReadonlyArray<RawLink> =
       node.type === "link"
-        ? [{ label: extractText(node), target: (node as Link).url }]
+        ? [
+            {
+              label: extractText(node),
+              target: (node as Link).url,
+              title: (node as Link).title ?? undefined,
+            },
+          ]
         : [];
     const nested: ReadonlyArray<RawLink> =
       "children" in node
