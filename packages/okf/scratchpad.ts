@@ -52,7 +52,7 @@ const main = Effect.gen(function* () {
   yield* Console.log("\n=== Mermaid Diagram ===");
   const mermaid = Graph.toMermaid(graph.graph, {
     nodeLabel: (node) => node.id.split("/").pop() ?? node.id,
-    edgeLabel: (edge) => edge.label ?? "",
+    edgeLabel: (edge) => edge.relation ?? edge.label ?? "",
   });
   yield* Console.log(mermaid);
 });

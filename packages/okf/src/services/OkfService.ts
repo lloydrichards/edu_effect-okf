@@ -84,6 +84,7 @@ export class OkfService extends Context.Service<OkfService>()(
             return ConceptLink.cases.external.make({
               target: link.target,
               label: link.label,
+              relation: link.title,
             });
           }
           const relativeTarget = link.target.startsWith("/")
@@ -94,8 +95,12 @@ export class OkfService extends Context.Service<OkfService>()(
             ? ConceptLink.cases.internal.make({
                 target: resolvedId,
                 label: link.label,
+                relation: link.title,
               })
-            : ConceptLink.cases.broken.make({ target: resolvedId });
+            : ConceptLink.cases.broken.make({
+                target: resolvedId,
+                relation: link.title,
+              });
         };
 
       const validateIndexFile = Effect.fn("validateIndexFile")(function* (
@@ -365,12 +370,11 @@ export class OkfService extends Context.Service<OkfService>()(
           allLinks,
           Arr.map(({ sourceId, link }) =>
             pipe(
-              Match.value(link).pipe(
-                Match.tag("internal", ({ label, target }) =>
-                  Option.some({ targetId: target, label }),
-                ),
-                Match.orElse(() => Option.none()),
+              Match.value(link),
+              Match.tag("internal", ({ label, relation, target }) =>
+                Option.some({ targetId: target, label, relation }),
               ),
+              Match.orElse(() => Option.none()),
               Option.map((intent) => ({ sourceId, ...intent })),
             ),
           ),
@@ -381,12 +385,11 @@ export class OkfService extends Context.Service<OkfService>()(
           allLinks,
           Arr.map(({ sourceId, link }) =>
             pipe(
-              Match.value(link).pipe(
-                Match.tag("broken", ({ target }) =>
-                  Option.some({ targetId: target }),
-                ),
-                Match.orElse(() => Option.none()),
+              Match.value(link),
+              Match.tag("broken", ({ relation, target }) =>
+                Option.some({ targetId: target, relation }),
               ),
+              Match.orElse(() => Option.none()),
               Option.map((unresolved) => ({ sourceId, ...unresolved })),
             ),
           ),

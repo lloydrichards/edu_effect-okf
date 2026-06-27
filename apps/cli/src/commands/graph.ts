@@ -337,7 +337,7 @@ export const graph = Command.make(
 
       const mermaid = Graph.toMermaid(graph.graph, {
         nodeLabel: (node) => node.id,
-        edgeLabel: (edge) => edge.label ?? edge.kind,
+        edgeLabel: (edge) => edge.relation ?? edge.label ?? edge.kind,
       });
 
       const payload = {

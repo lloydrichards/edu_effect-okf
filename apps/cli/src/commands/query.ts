@@ -55,7 +55,7 @@ export const queryCommand = Command.make(
 
       const mermaid = Graph.toMermaid(subgraph, {
         nodeLabel: (node) => node.id,
-        edgeLabel: (edge) => edge.label ?? edge.kind,
+        edgeLabel: (edge) => edge.relation ?? edge.label ?? edge.kind,
       });
 
       // Build index map: nodeIndex -> node id (for resolving edge endpoints)
@@ -67,7 +67,12 @@ export const queryCommand = Command.make(
       // Collect edges per node (keyed by source node id)
       const edgesByNode = new Map<
         string,
-        Array<{ target: string; kind: string; label?: string | undefined }>
+        Array<{
+          target: string;
+          kind: string;
+          label?: string | undefined;
+          relation?: string | undefined;
+        }>
       >();
       for (const [, edge] of Graph.edges(subgraph)) {
         const sourceId = indexToId.get(edge.source) ?? edge.data.sourceId;
@@ -76,6 +81,7 @@ export const queryCommand = Command.make(
           target: targetId,
           kind: edge.data.kind,
           label: edge.data.label,
+          relation: edge.data.relation,
         };
         const existing = edgesByNode.get(sourceId);
         if (existing) existing.push(entry);
