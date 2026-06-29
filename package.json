@@ -11,9 +11,13 @@
     "dev": "turbo run dev",
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && git clean -xdf node_modules .cache .turbo dist tsconfig.tsbuildinfo",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
     "@effect/language-service": "^0.86.2",
     "typescript": "6.0.3",
     "@biomejs/biome": "2.5.1",
