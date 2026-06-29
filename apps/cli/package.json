@@ -1,13 +1,30 @@
 {
-  "name": "cli",
-  "private": true,
+  "name": "@lloydrichards/edu_effect-okf",
   "version": "0.0.0",
+  "description": "CLI for validating, exploring, embedding, and querying Open Knowledge Format bundles.",
   "type": "module",
   "bin": {
-    "cli": "dist/index.js"
+    "okf": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lloydrichards/edu_effect-okf.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/lloydrichards/edu_effect-okf#readme",
+  "bugs": {
+    "url": "https://github.com/lloydrichards/edu_effect-okf/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir=dist --target=bun --minify",
+    "build": "bun build src/index.ts --outdir=dist --target=bun --minify --banner='#!/usr/bin/env bun' && chmod +x dist/index.js",
     "build:types": "tsc --emitDeclarationOnly",
     "dev": "bun run src/index.ts",
     "test": "vitest run --passWithNoTests",
