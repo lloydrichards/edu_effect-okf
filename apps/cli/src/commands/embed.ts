@@ -1,3 +1,4 @@
+import { EmbeddingModelLive } from "@repo/ai";
 import { OkfService } from "@repo/okf";
 import { RagService } from "@repo/rag";
 import { Console, Effect } from "effect";
@@ -66,7 +67,7 @@ export const embed = Command.make(
       yield* Console.log(
         `Ingested ${result.count} documents into collection "${collectionName}"${reset ? " after reset" : ""}`,
       );
-    }),
+    }).pipe(Effect.provide(EmbeddingModelLive)),
 ).pipe(
   Command.withDescription(
     "Embed an OKF bundle into a vector database for semantic search and retrieval",
