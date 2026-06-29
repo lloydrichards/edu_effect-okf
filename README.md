@@ -30,15 +30,47 @@ edu_effect-okf/
 │   └── config-typescript/  # Shared tsconfig base
 ```
 
-| Workspace | Purpose |
-|-----------|---------|
-| `apps/cli` | CLI for OKF operations (skeleton -- commands TBD) |
-| `apps/server` | Example AI chat server over RPC (experimental) |
-| `packages/ai` | Anthropic LLM, toolkits (think, datetime, rag), agentic loop |
-| `packages/rag` | Chunking (byte/token), ChromaDB client, ingest/retrieve |
-| `packages/domain` | Effect Schema definitions shared across packages |
+| Workspace         | Purpose                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| `apps/cli`        | CLI for OKF operations (skeleton -- commands TBD)            |
+| `apps/server`     | Example AI chat server over RPC (experimental)               |
+| `packages/ai`     | Anthropic LLM, toolkits (think, datetime, rag), agentic loop |
+| `packages/rag`    | Chunking (byte/token), ChromaDB client, ingest/retrieve      |
+| `packages/domain` | Effect Schema definitions shared across packages             |
 
 ## Getting Started
+
+### Use the CLI Without Cloning This Repo
+
+The CLI is published to GitHub Packages as
+`@lloydrichards/edu_effect-okf`. You can install and use it from any directory
+that contains an OKF bundle.
+
+First, configure the GitHub Packages npm registry for the `@lloydrichards`
+scope:
+
+```bash
+npm config set @lloydrichards:registry https://npm.pkg.github.com
+```
+
+Then install the CLI globally with Bun:
+
+```bash
+bun add -g @lloydrichards/edu_effect-okf
+```
+
+Run the CLI:
+
+```bash
+okf --help
+okf validate ./path/to/okf-bundle
+okf graph ./path/to/okf-bundle
+okf concept ./path/to/okf-bundle concept-id
+```
+
+The validation, graph, bundle, and concept commands work without API keys. The
+`embed` and `query` commands also need a running ChromaDB instance and
+`OPENAI_API_KEY`, because they create embeddings.
 
 ### Prerequisites
 
@@ -47,6 +79,8 @@ edu_effect-okf/
 - `ANTHROPIC_API_KEY` environment variable
 
 ### Install
+
+Clone the repo only if you want to work on the implementation:
 
 ```bash
 bun install
