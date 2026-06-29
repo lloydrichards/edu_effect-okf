@@ -1,11 +1,11 @@
-import { NodeFileSystem, NodePath } from "@effect/platform-node";
+import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, FileSystem, Layer } from "effect";
 import { MarkdownService } from "./MarkdownService";
 import { BundleInvalid, OkfService } from "./OkfService";
 
 const TestLayer = Layer.mergeAll(OkfService.layer, MarkdownService.layer).pipe(
-  Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)),
+  Layer.provideMerge(NodeServices.layer),
 );
 
 describe("OkfService", () => {

@@ -25,7 +25,7 @@ export const queryCommand = Command.make(
 
       const embeddings = yield* embedder.embed(query);
 
-      const collectionName = bundlePath.split("/").pop() || bundle.root;
+      const collectionName = bundle.root.split("/").pop() || bundle.root;
       const collectionInfo = yield* rag.collectionInfo({
         collection: collectionName,
       });

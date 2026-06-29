@@ -29,41 +29,44 @@ const conceptEmbeddingText = (concept: {
     .filter((part): part is string => part !== null)
     .join("\n");
 
-export const embed = Command.make("embed", { bundlePath, reset }, ({ bundlePath, reset }) =>
-  Effect.gen(function* () {
-    const okf = yield* OkfService;
-    const rag = yield* RagService;
-    const embedder = yield* EmbeddingModel.EmbeddingModel;
+export const embed = Command.make(
+  "embed",
+  { bundlePath, reset },
+  ({ bundlePath, reset }) =>
+    Effect.gen(function* () {
+      const okf = yield* OkfService;
+      const rag = yield* RagService;
+      const embedder = yield* EmbeddingModel.EmbeddingModel;
 
-    const { bundle, graph } = yield* okf.make(bundlePath);
+      const { bundle, graph } = yield* okf.make(bundlePath);
 
-    const documents = bundle.concepts.map(conceptEmbeddingText);
+      const documents = bundle.concepts.map(conceptEmbeddingText);
 
-    const embeddings = yield* embedder.embedMany(documents);
+      const embeddings = yield* embedder.embedMany(documents);
 
-    const collectionName = bundlePath.split("/").pop() || bundle.root;
+      const collectionName = bundle.root.split("/").pop() || bundle.root;
 
-    if (reset) {
-      yield* rag.deleteCollection({ collection: collectionName }).pipe(
-        Effect.catch(() => Effect.void),
+      if (reset) {
+        yield* rag
+          .deleteCollection({ collection: collectionName })
+          .pipe(Effect.catch(() => Effect.void));
+      }
+
+      const result = yield* rag.ingest({
+        collection: collectionName,
+        ids: bundle.concepts.map((c) => c.id),
+        embeddings: embeddings.embeddings.map((e) => [...e.vector]),
+        documents,
+        metadatas: bundle.concepts.map((c) => ({
+          graphNode: graph.nodeIndex.get(c.id) || "",
+          conceptId: c.id,
+        })),
+      });
+
+      yield* Console.log(
+        `Ingested ${result.count} documents into collection "${collectionName}"${reset ? " after reset" : ""}`,
       );
-    }
-
-    const result = yield* rag.ingest({
-      collection: collectionName,
-      ids: bundle.concepts.map((c) => c.id),
-      embeddings: embeddings.embeddings.map((e) => [...e.vector]),
-      documents,
-      metadatas: bundle.concepts.map((c) => ({
-        graphNode: graph.nodeIndex.get(c.id) || "",
-        conceptId: c.id,
-      })),
-    });
-
-    yield* Console.log(
-      `Ingested ${result.count} documents into collection "${collectionName}"${reset ? " after reset" : ""}`,
-    );
-  }),
+    }),
 ).pipe(
   Command.withDescription(
     "Embed an OKF bundle into a vector database for semantic search and retrieval",
