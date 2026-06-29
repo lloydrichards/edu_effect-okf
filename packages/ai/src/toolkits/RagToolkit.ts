@@ -52,7 +52,7 @@ const RetrieverTool = Tool.make("retriever", {
     ),
   }),
   success: Schema.Struct({
-            documents: Schema.Array(
+    documents: Schema.Array(
       Schema.Struct({
         id: Schema.NullOr(Schema.String),
         document: Schema.String,

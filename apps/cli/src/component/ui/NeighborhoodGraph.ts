@@ -144,9 +144,9 @@ const LabelBox = (
         ? Ansi.combine(Ansi.yellow, Ansi.bold)
         : branch.index === highlight.nodeIndex
           ? Ansi.cyan
-        : branch.repeat !== undefined
-          ? Ansi.dim
-          : Ansi.fgDefault,
+          : branch.repeat !== undefined
+            ? Ansi.dim
+            : Ansi.fgDefault,
     ),
   );
 
@@ -181,11 +181,7 @@ const DownBranchBox = (
     Box.left,
   );
 
-const UpRootBox = (
-  branch: Branch,
-  isFirst: boolean,
-  highlight: Highlight,
-) => {
+const UpRootBox = (branch: Branch, isFirst: boolean, highlight: Highlight) => {
   const path = [branch.index];
 
   if (branch.children.length === 0) {

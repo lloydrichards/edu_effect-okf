@@ -8,8 +8,8 @@ import { reset } from "../flags";
 
 const conceptEmbeddingText = (concept: {
   readonly id: string;
-    readonly body?: string;
-    readonly frontmatter: {
+  readonly body?: string;
+  readonly frontmatter: {
     readonly title?: string | undefined;
     readonly description?: string | undefined;
     readonly tags?: ReadonlyArray<string> | undefined;
