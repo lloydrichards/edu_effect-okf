@@ -1,3 +1,4 @@
+import { EmbeddingModelLive } from "@repo/ai";
 import type { ConceptEdge, ConceptNode } from "@repo/domain/Okf";
 import { OkfService } from "@repo/okf";
 import { RagService } from "@repo/rag";
@@ -201,7 +202,7 @@ export const queryCommand = Command.make(
       );
 
       yield* Console.log(json ? JSON.stringify(payload, null, 2) : content);
-    }),
+    }).pipe(Effect.provide(EmbeddingModelLive)),
 ).pipe(
   Command.withDescription(
     "Query an OKF bundle in a vector database for semantic search and retrieval",

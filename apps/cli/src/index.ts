@@ -1,5 +1,4 @@
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { EmbeddingModelLive } from "@repo/ai";
 import { MarkdownService, OkfService } from "@repo/okf";
 import { RagService } from "@repo/rag";
 import { Cause, Console, Effect, Layer } from "effect";
@@ -36,7 +35,6 @@ const MainLayer = Layer.mergeAll(
   OkfService.layer,
   MarkdownService.layer,
   RagService.Default,
-  EmbeddingModelLive,
 ).pipe(Layer.provideMerge(BunServices.layer));
 
 const restoreTerminal = Box.renderPretty(
