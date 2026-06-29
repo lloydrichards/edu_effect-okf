@@ -163,3 +163,28 @@ export const ValidationResult = Schema.Struct({
 });
 
 export type ValidationResult = typeof ValidationResult.Type;
+
+export const OkfSourceInput = Schema.TaggedUnion({
+  Local: {
+    input: Schema.String,
+    path: Schema.String,
+  },
+  Git: {
+    input: Schema.String,
+    repoUrl: Schema.String,
+    ref: Schema.String,
+    subpath: Schema.String,
+  },
+});
+
+export type OkfSourceInput = typeof OkfSourceInput.Type;
+
+export const ResolvedOkfSource = Schema.Struct({
+  input: Schema.String,
+  bundlePath: Schema.String,
+  source: OkfSourceInput,
+  checkoutPath: Schema.optional(Schema.String),
+  commit: Schema.optional(Schema.String),
+});
+
+export type ResolvedOkfSource = typeof ResolvedOkfSource.Type;

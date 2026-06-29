@@ -31,6 +31,7 @@ import {
   MarkdownService,
   type RawLink,
 } from "./MarkdownService";
+import { SourceResolver } from "./SourceResolver";
 
 /** ISO 8601 datetime pattern for SHOULD-level validation (§4.1) */
 const TimestampFormat = Schema.String.check(
@@ -68,6 +69,7 @@ export class OkfService extends Context.Service<OkfService>()(
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const md = yield* MarkdownService;
+      const sourceResolver = yield* SourceResolver;
 
       const parentDir = (id: string) =>
         pipe(
@@ -423,7 +425,8 @@ export class OkfService extends Context.Service<OkfService>()(
 
       return {
         make: Effect.fn("make")(function* (bundlePath: string) {
-          const bundle = yield* loadBundle(bundlePath).pipe(
+          const source = yield* sourceResolver.resolve(bundlePath);
+          const bundle = yield* loadBundle(source.bundlePath).pipe(
             Effect.catchTag(
               "PlatformError",
               () => new BundleNotFound({ path: bundlePath }),
@@ -437,7 +440,8 @@ export class OkfService extends Context.Service<OkfService>()(
           } as const;
         }),
         validate: Effect.fn("validate")(function* (bundlePath: string) {
-          const bundle = yield* loadBundle(bundlePath).pipe(
+          const source = yield* sourceResolver.resolve(bundlePath);
+          const bundle = yield* loadBundle(source.bundlePath).pipe(
             Effect.catchTag(
               "PlatformError",
               () => new BundleNotFound({ path: bundlePath }),
@@ -500,5 +504,6 @@ export class OkfService extends Context.Service<OkfService>()(
 ) {
   static readonly layer = Layer.effect(this, this.make).pipe(
     Layer.provide(MarkdownService.layer),
+    Layer.provideMerge(SourceResolver.layer),
   );
 }
