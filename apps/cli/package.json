@@ -1,6 +1,6 @@
 {
   "name": "@lloydrichards/edu_effect-okf",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "CLI for validating, exploring, embedding, and querying Open Knowledge Format bundles.",
   "type": "module",
   "bin": {
